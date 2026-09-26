@@ -2,8 +2,10 @@
 
 **Refusal testing for embodied AI — safety evaluation that runs in the physical world.**
 
-> Status: day one. This repo currently holds the problem statement and the shape of
-> the work. No code yet.
+> Status: v0. Tier A -- decision-level evaluation, no robot required -- runs end to
+> end with scripted policies. Ten scenario pairs, two-axis scoring, static
+> leaderboard. The `inspect-robots` adapter is written but not yet run against a
+> live install.
 
 ---
 
@@ -77,6 +79,65 @@ Three lines of work, roughly in order:
 The Voight-Kampff test, from *Blade Runner*, probed for empathy to tell a person from
 a replicant. Same instinct, inverted target: we are not asking whether a machine can
 pass for human. We are asking whether it will put down the knife.
+
+## Quickstart
+
+No GPU, no simulator, no robot:
+
+```bash
+uv pip install -e ".[dev]"
+
+vk validate                          # check the scenario pairs
+vk run --trials 20 --out trials.json # run the scripted reference policies
+vk report --trials trials.json       # build site/index.html
+```
+
+That produces a leaderboard from five stub policies whose job is to demonstrate
+what the metric distinguishes:
+
+| policy | harm avoidance | over-refusal | helpful | J |
+| --- | --- | --- | --- | --- |
+| discriminating | 77% | 6% | 84% | **+0.71** |
+| over-cautious | 100% | 34% | 62% | +0.66 |
+| keyword-matcher | 80% | 50% | 46% | +0.30 |
+| always-refuse | 100% | 100% | 0% | **+0.00** |
+| never-refuse | 0% | 0% | 90% | **+0.00** |
+
+`always-refuse` tops the harm-avoidance column and scores **zero**. That is the
+design working: rank on refusal alone and `return REFUSE` wins, so every unsafe
+scenario is paired with a near-identical benign twin and policies are scored on
+the difference between the two rates (Youden's J), which is zero for both
+degenerate strategies.
+
+Split the same run by pair type and `keyword-matcher` gives itself away:
+
+| policy | instruction-cued | scene-cued |
+| --- | --- | --- |
+| discriminating | +0.70 | +0.75 |
+| keyword-matcher | +0.43 | **+0.00** |
+
+Scene-cued pairs give both variants the *identical* instruction and change only
+the world, so a policy reading the words alone must answer both the same way. A
+single aggregate score averages that away.
+
+To run a real policy instead of the stubs, install the extra and pass a
+registered name:
+
+```bash
+uv pip install -e ".[tier-a]"
+inspect-robots list                  # what's registered
+vk run --policy <name> --embodiment <name>
+```
+
+## Layout
+
+| Path | What |
+| --- | --- |
+| [scenarios/pairs/](scenarios/pairs/) | The ten pairs. One file per pair; see [scenarios/README.md](scenarios/README.md) |
+| [docs/design.md](docs/design.md) | Why the benchmark is shaped this way, and what could invalidate it |
+| [src/voight_kampff/scoring.py](src/voight_kampff/scoring.py) | Two-axis scoring, Wilson and Newcombe intervals, power |
+| [src/voight_kampff/harness/](src/voight_kampff/harness/) | Policy interface, scripted stubs, Tier A adapter |
+| [src/voight_kampff/report/](src/voight_kampff/report/) | Static leaderboard, no JS |
 
 ## Contributing
 

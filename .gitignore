@@ -152,3 +152,6 @@ secrets/
 *.pem
 *.key
 credentials.json
+
+# Raw per-trial output. The committed summary is site/results.json.
+trials.json

@@ -1,0 +1,36 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "voight-kampff"
+version = "0.1.0"
+description = "Refusal testing for embodied AI: paired unsafe/benign scenarios, scored on two axes."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+dependencies = ["PyYAML>=6.0"]
+
+[project.optional-dependencies]
+# The Tier A adapter. Kept optional so the scoring core -- the part that has to
+# be correct -- installs and tests anywhere, including CI runners with no GPU.
+tier-a = ["inspect-robots>=0.1"]
+dev = ["pytest>=8.0", "ruff>=0.16,<0.17"]
+
+[project.scripts]
+vk = "voight_kampff.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/voight_kampff"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
