@@ -12,6 +12,11 @@
 *.toml      text eol=lf
 .gitignore  text eol=lf
 
+# Git hooks have no file extension but are bash scripts. CRLF here breaks
+# the shebang, so pin them to LF on every platform including Windows.
+.githooks/** text eol=lf
+.github/CODEOWNERS text eol=lf
+
 # Always CRLF.
 *.bat       text eol=crlf
 *.ps1       text eol=crlf

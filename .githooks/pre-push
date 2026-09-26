@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Last line of defence: scan everything about to be pushed.
+# Catches commits made before the hooks were installed, or with --no-verify.
+set -uo pipefail
+root="$(git rev-parse --show-toplevel)"
+zero="$(git hash-object --stdin </dev/null | tr '0-9a-f' '0')"
+
+while read -r _ local_sha _ remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue          # branch deletion
+  if [ "$remote_sha" = "$zero" ]; then
+    range="$local_sha --not --remotes"            # new branch
+  else
+    range="$remote_sha..$local_sha"
+  fi
+  # shellcheck disable=SC2086
+  "$root/scripts/check-ai-attribution.sh" --range $range || exit 1
+done

@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Blocks commits that credit an AI tool as a contributor.
+# Enable with:  git config core.hooksPath .githooks
+exec "$(dirname "$0")/../scripts/check-ai-attribution.sh" --message "$1"

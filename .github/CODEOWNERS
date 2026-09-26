@@ -1,0 +1,4 @@
+# Every pull request requests review from the owner by default.
+# Add per-directory owners here as the project grows, e.g.
+#   /scenarios/  @someone-with-hardware
+*   @Frank-7

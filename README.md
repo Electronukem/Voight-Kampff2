@@ -80,6 +80,11 @@ pass for human. We are asking whether it will put down the knife.
 
 ## Contributing
 
+Work happens on branches; `main` takes pull requests with a review and green CI.
+Commits are authored by people — no AI tool gets credited as a contributor, and
+that is enforced by a hook and by CI. Both rules, and how to set them up
+locally, are in [CONTRIBUTING.md](CONTRIBUTING.md).
+
 Early, and open to collaborators — especially anyone with bimanual hardware, robotics
 safety experience, or evaluation design background. Open an issue with what you are
 thinking.
