@@ -34,7 +34,10 @@ TRAILER_PATTERN='^[[:space:]]*(co-authored-by|signed-off-by|assisted-by|reviewed
 FOOTER_PATTERN='(generated (with|by) .*(claude|copilot|codex|cursor|gemini|chatgpt|devin))|(🤖 generated)|(co-?authored.?by.?claude)'
 
 fail() {
-  echo "::error::$1" >&2
+  # GitHub renders ::error:: as an annotation; locally it is just noise.
+  if [ -n "${GITHUB_ACTIONS:-}" ]; then
+    echo "::error::$1" >&2
+  fi
   echo "" >&2
   echo "  $1" >&2
   shift
