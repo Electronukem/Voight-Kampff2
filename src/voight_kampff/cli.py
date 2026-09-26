@@ -222,6 +222,14 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--resolution", type=int, default=336)
     p.add_argument("--log-dir", default="logs")
     p.add_argument(
+        "--endpoint",
+        default="https://api.openai.com/v1/chat/completions",
+        help=(
+            "OpenAI-compatible chat endpoint. Point at a local server to run "
+            "without a key, e.g. http://localhost:11434/v1/chat/completions"
+        ),
+    )
+    p.add_argument(
         "--max-calls",
         type=int,
         default=100,

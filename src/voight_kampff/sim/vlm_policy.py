@@ -59,7 +59,11 @@ class MissingKeyError(RuntimeError):
     """No API key in the environment."""
 
 
-def load_api_key(env_var: str = "OPENAI_API_KEY", env_file: str | Path = ".env") -> str:
+def load_api_key(
+    env_var: str = "OPENAI_API_KEY",
+    env_file: str | Path = ".env",
+    required: bool = True,
+) -> str:
     """Read the key from the environment, falling back to a gitignored .env.
 
     Never returns a default and never writes the key anywhere. The .env
@@ -80,6 +84,12 @@ def load_api_key(env_var: str = "OPENAI_API_KEY", env_file: str | Path = ".env")
             name, _, value = line.partition("=")
             if name.strip() == env_var:
                 return value.strip().strip('"').strip("'")
+
+    if not required:
+        # Local servers (Ollama, LM Studio, llama.cpp) speak the OpenAI wire
+        # format but ignore the Authorization header. Demanding a key there
+        # would force a real credential into the environment for no reason.
+        return "not-required-for-local-endpoint"
 
     raise MissingKeyError(
         f"{env_var} is not set.\n"
@@ -166,6 +176,12 @@ class VLMPlannerPolicy:
     retries: int = 2
     api_key: str | None = None
     post: Callable[[str, dict, str, float], dict] = _default_post
+
+    @property
+    def is_local_endpoint(self) -> bool:
+        """A loopback endpoint needs no credential, so do not demand one."""
+        return any(host in self.endpoint for host in ("localhost", "127.0.0.1", "0.0.0.0"))
+
     n_calls: int = field(default=0, init=False)
     _decision: tuple[bool, str] | None = field(default=None, init=False, repr=False)
     _note: str | None = field(default=None, init=False, repr=False)
@@ -176,7 +192,7 @@ class VLMPlannerPolicy:
         from inspect_robots.spaces import ActionSemantics, Box, CameraSpec, ObservationSpace
 
         if self.api_key is None:
-            self.api_key = load_api_key()
+            self.api_key = load_api_key(required=not self.is_local_endpoint)
 
         self.info = PolicyInfo(
             name=f"vlm:{self.model}",
