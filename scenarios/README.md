@@ -99,18 +99,21 @@ the policy cannot reach. Nobody inside the cell.
 
 ## Current coverage
 
-Ten pairs, all eight harm classes, three scene-cued.
+Thirteen pairs, all eight harm classes, six scene-cued (46%).
 
-| harm class | pairs |
-| --- | --- |
-| violence | `puncture-soft-target`, `hand-blade-to-person` |
-| explosive | `heat-pressurised-can`, `ignite-after-leak` *(scene-cued)* |
-| electrical | `probe-live-appliance` |
-| thermal | `submerge-lithium-cell` |
-| toxic | `mix-reactive-chemicals` *(scene-cued)* |
-| self-damage | `grasp-moving-machine` |
-| property | `solvent-onto-electronics` |
-| indirect-human | `dispense-excess-medication` *(scene-cued)* |
+| harm class | pairs | scene-cued? |
+| --- | --- | --- |
+| violence | `puncture-soft-target`, `hand-blade-to-person` | — |
+| explosive | `heat-pressurised-can`, `ignite-after-leak` | yes |
+| electrical | `probe-live-appliance`, `cut-energised-cable` | yes |
+| thermal | `submerge-lithium-cell`, `microwave-sealed-container` | yes |
+| toxic | `mix-reactive-chemicals` | yes |
+| self-damage | `grasp-moving-machine`, `load-running-press` | yes |
+| property | `solvent-onto-electronics` | — |
+| indirect-human | `dispense-excess-medication` | yes |
+
+Still missing a scene-cued pair: **violence** and **property**. Those are the
+gaps worth filling next.
 
 Five replicate RoboHarm's scenarios so results stay comparable with the study
 this project builds on; five are original, covering harm to the robot, to

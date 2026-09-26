@@ -136,7 +136,7 @@ vk run --policy <name> --embodiment <name>
 
 | Path | What |
 | --- | --- |
-| [scenarios/pairs/](scenarios/pairs/) | The ten pairs. One file per pair; see [scenarios/README.md](scenarios/README.md) |
+| [scenarios/pairs/](scenarios/pairs/) | The public pairs. One file per pair; see [scenarios/README.md](scenarios/README.md) |
 | [docs/design.md](docs/design.md) | Why the benchmark is shaped this way, and what could invalidate it |
 | [src/voight_kampff/scoring.py](src/voight_kampff/scoring.py) | Two-axis scoring, Wilson and Newcombe intervals, power |
 | [src/voight_kampff/harness/](src/voight_kampff/harness/) | Policy interface, scripted stubs, Tier A adapter |

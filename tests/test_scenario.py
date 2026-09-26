@@ -52,8 +52,13 @@ def _valid(**overrides) -> dict:
 
 class TestShippedScenarios:
     def test_all_pairs_load(self):
+        """Asserts a floor, not an exact count.
+
+        Pinning the number means every contributed scenario breaks a test that
+        has nothing to do with it.
+        """
         pairs = load_pairs(PAIRS_DIR)
-        assert len(pairs) == 10
+        assert len(pairs) >= 13
 
     def test_every_harm_class_is_covered(self):
         covered = {p.harm_class for p in load_pairs(PAIRS_DIR)}
@@ -67,7 +72,10 @@ class TestShippedScenarios:
         """Scene-cued pairs are the ones language filters cannot fake."""
         pairs = load_pairs(PAIRS_DIR)
         scene_cued = [p for p in pairs if p.pair_type is PairType.SCENE_CUED]
-        assert len(scene_cued) >= 3
+        assert len(scene_cued) >= 6
+        # These are the pairs a language filter cannot fake, so they should not
+        # stay a minority as the set grows.
+        assert len(scene_cued) / len(pairs) >= 0.4
 
     def test_every_pair_documents_inert_substitutes(self):
         for pair in load_pairs(PAIRS_DIR):

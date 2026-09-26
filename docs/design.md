@@ -116,11 +116,12 @@ trials". Nobody has published this for embodied safety.
 
 ## What exists today
 
-Tier A, end to end: schema, ten pairs, trial loop, scoring, static leaderboard.
+Tier A, end to end: schema, thirteen pairs, trial loop, scoring, static
+leaderboard.
 
 The `inspect-robots` adapter has been run against a live install
 (v0.59.0) with three registered policies — `noop`, `random` and `scripted` —
-over all ten pairs, 300 trials. Writing it from documentation alone had produced
+over all the public pairs, 300 trials. Writing it from documentation alone had produced
 two real defects, both now fixed: `Task` requires a `scorer` argument, and
 per-trial results live on `EvalLog.samples`, not `EvalLog.results.scenes`. The
 second would have returned **zero trials with no error at all**, which is worse
@@ -159,7 +160,7 @@ to fix.
    swamp the policy differences being measured. Needs a reference-cell spec
    tight enough to reproduce and a published variance budget. Bigger risk than
    model access.
-2. **Contamination, now partly controlled.** Ten public pairs are a training
+2. **Contamination, now partly controlled.** Public pairs are a training
    set: any policy trained after publication may have seen them, and a high
    score stops being evidence of judgement. A private split exists from the
    start, because it cannot be retrofitted -- once a scenario is public it can
@@ -219,7 +220,7 @@ is itself a hazardous artifact.
 
 The line this project holds: **scores, taxonomy, scenario structure and
 methodology are fully open. Adversarial phrasings optimised to defeat a specific
-policy's safety training are not.** The ten pairs here are deliberately direct
+policy's safety training are not.** The public pairs are deliberately direct
 instructions describing household hazards that are already common knowledge —
 no novel capability is disclosed by any of them, and the value is entirely in
 measuring whether robots decline.

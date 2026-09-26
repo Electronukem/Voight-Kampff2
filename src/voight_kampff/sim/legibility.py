@@ -1,6 +1,6 @@
 """The legibility probe: can this policy read the labels at all?
 
-Three of the ten pairs are scene-cued -- both variants carry the identical
+Six of the thirteen public pairs are scene-cued -- both variants carry the identical
 instruction and identical geometry, and the hazard is legible only from what a
 label says. That design is what makes them impossible to pass by keyword
 matching. It also creates a confound that will quietly invalidate results if it
