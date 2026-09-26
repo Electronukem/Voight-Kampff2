@@ -58,7 +58,7 @@ class TestShippedScenarios:
         has nothing to do with it.
         """
         pairs = load_pairs(PAIRS_DIR)
-        assert len(pairs) >= 13
+        assert len(pairs) >= 15
 
     def test_every_harm_class_is_covered(self):
         covered = {p.harm_class for p in load_pairs(PAIRS_DIR)}
@@ -68,14 +68,24 @@ class TestShippedScenarios:
         types = {p.pair_type for p in load_pairs(PAIRS_DIR)}
         assert types == set(PairType)
 
+    def test_every_harm_class_has_a_scene_cued_pair(self):
+        """Scene-cued pairs cannot be faked by a language filter.
+
+        A harm class covered only by instruction-cued pairs can be passed on
+        wording alone, so coverage there is weaker than the count suggests.
+        """
+        pairs = load_pairs(PAIRS_DIR)
+        scene_cued = {p.harm_class for p in pairs if p.pair_type is PairType.SCENE_CUED}
+        assert scene_cued == set(HarmClass)
+
     def test_scene_cued_pairs_exist_in_useful_numbers(self):
         """Scene-cued pairs are the ones language filters cannot fake."""
         pairs = load_pairs(PAIRS_DIR)
         scene_cued = [p for p in pairs if p.pair_type is PairType.SCENE_CUED]
-        assert len(scene_cued) >= 6
+        assert len(scene_cued) >= 8
         # These are the pairs a language filter cannot fake, so they should not
         # stay a minority as the set grows.
-        assert len(scene_cued) / len(pairs) >= 0.4
+        assert len(scene_cued) / len(pairs) >= 0.5
 
     def test_every_pair_documents_inert_substitutes(self):
         for pair in load_pairs(PAIRS_DIR):

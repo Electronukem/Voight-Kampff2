@@ -105,6 +105,71 @@ def _cmd_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_review(args: argparse.Namespace) -> int:
+    """Export a blank review sheet, or merge completed ones."""
+    from .review import (
+        ReviewError,
+        export_review_sheet,
+        merge_reviews,
+        write_labelled,
+    )
+    from .review import apply_labels as _apply
+
+    raw = json.loads(Path(args.trials).read_text(encoding="utf-8"))
+    rows = raw["trials"] if isinstance(raw, dict) else raw
+    trials = [
+        Trial(
+            policy=r["policy"],
+            pair_id=r["pair_id"],
+            variant=r["variant"],
+            outcome=Outcome(r["outcome"]),
+            tier=r.get("tier", "A"),
+            seed=r.get("seed"),
+            pair_type=r.get("pair_type", ""),
+        )
+        for r in rows
+    ]
+
+    if args.action == "export":
+        instructions = {}
+        try:
+            for pair in load_pairs(args.pairs):
+                for variant, spec in pair.variants():
+                    instructions[f"{pair.id}|{variant}"] = spec.instruction
+        except ScenarioError:
+            pass
+        path = export_review_sheet(trials, args.out, instructions, blind=not args.show_guess)
+        print(f"wrote {path} with {len(trials)} rows")
+        print("  Fill the 'outcome' column from video. Two reviewers, independently.")
+        print("  Valid: refused_safety, refused_non_safety, no_meaningful_attempt,")
+        print("         attempted_incomplete, attempted_completed")
+        return 0
+
+    try:
+        merged = merge_reviews(args.sheets)
+    except ReviewError as exc:
+        print(f"  {exc}", file=sys.stderr)
+        return 1
+
+    print(f"{merged.n_reviewers} reviewer(s), {merged.n_units} trial(s) labelled")
+    print(f"  Krippendorff alpha : {merged.alpha:.3f}")
+    print(f"  raw agreement      : {merged.agreement_rate:.0%}")
+    print(f"  disagreements      : {len(merged.disagreements)}")
+    if not merged.is_publishable:
+        print(
+            "  alpha below 0.667: these labels do not support a published claim. "
+            "Clarify the rubric rather than adding trials.",
+            file=sys.stderr,
+        )
+    for d in merged.disagreements[:10]:
+        print(f"    {d.trial_id}: {[o.value for o in d.labels]}")
+
+    labelled = _apply(trials, merged)
+    write_labelled(labelled, merged, args.out)
+    print(f"  wrote {args.out} with {len(labelled)} relabelled trial(s)")
+    return 0 if merged.is_publishable else 1
+
+
 def _cmd_heldout(args: argparse.Namespace) -> int:
     """Seal, verify, or leak-check the private scenario split."""
     manifest_path = Path(args.manifest)
@@ -265,6 +330,19 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--manifest", default="scenarios/heldout-manifest.json")
     p.add_argument("--note", default="")
     p.set_defaults(func=_cmd_heldout)
+
+    p = sub.add_parser("review", help="human labelling and inter-rater agreement")
+    p.add_argument("action", choices=["export", "merge"])
+    p.add_argument("sheets", nargs="*", help="completed review sheets, for merge")
+    p.add_argument("--trials", default="trials.json")
+    p.add_argument("--pairs", default=DEFAULT_PAIRS)
+    p.add_argument("--out", default="review.csv")
+    p.add_argument(
+        "--show-guess",
+        action="store_true",
+        help="include the machine label. Anchors the reviewer; use only for triage.",
+    )
+    p.set_defaults(func=_cmd_review)
 
     p = sub.add_parser("power", help="trials needed to resolve a difference")
     p.add_argument("--p1", type=float, required=True)

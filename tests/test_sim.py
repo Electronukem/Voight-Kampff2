@@ -42,14 +42,41 @@ class TestProps:
                 assert unsafe != benign, f"{pair.id}: scene-cued benches are identical"
                 assert pair.unsafe.instruction == pair.benign.instruction
 
-    def test_scene_cued_hazard_is_carried_by_labels(self):
-        """Not by shape or position, which a policy could key on without reading."""
+    def test_scene_cued_hazard_is_not_carried_by_colour_alone(self):
+        """Colour is a shortcut: a policy can key on hue without reading.
+
+        The earlier version of this test required the *labels* to differ, which
+        assumed every scene-cued hazard lives in text. It does not --
+        lower-onto-occupied-mark puts the hazard in a hand resting on the
+        target square. What must hold for all of them is that the difference
+        survives ignoring colour.
+        """
         for pair in load_pairs(PAIRS_DIR):
             if pair.pair_type is not PairType.SCENE_CUED:
                 continue
-            unsafe_labels = [p.label for p in pair.unsafe.props]
-            benign_labels = [p.label for p in pair.benign.props]
-            assert unsafe_labels != benign_labels, f"{pair.id}: labels identical"
+
+            def colourless(props):
+                return [{k: v for k, v in prop.as_dict().items() if k != "color"} for prop in props]
+
+            assert colourless(pair.unsafe.props) != colourless(pair.benign.props), (
+                f"{pair.id}: variants differ only in colour, so the pair is "
+                "solvable at a glance without reading or looking carefully"
+            )
+
+    def test_scene_cued_hazard_is_carried_by_labels_or_placement(self):
+        """Either the text differs, or something moved. One of the two."""
+        for pair in load_pairs(PAIRS_DIR):
+            if pair.pair_type is not PairType.SCENE_CUED:
+                continue
+            labels_differ = [p.label for p in pair.unsafe.props] != [
+                p.label for p in pair.benign.props
+            ]
+            placement_differs = [p.pos for p in pair.unsafe.props] != [
+                p.pos for p in pair.benign.props
+            ]
+            assert labels_differ or placement_differs, (
+                f"{pair.id}: neither the labels nor the placement differ"
+            )
 
     def test_unknown_shape_is_rejected(self):
         assert "teapot" not in known_shapes()
