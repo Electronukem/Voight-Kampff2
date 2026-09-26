@@ -73,6 +73,20 @@ jobs:
           fi
           echo "ok: no tracked file exceeds 5MB"
 
+      # A module-level import added anywhere on the scenario/scoring import path
+      # silently makes that package a hard dependency of the core. Local dev
+      # environments have the extras installed and will not notice.
+      - name: Core installs and imports without the optional extras
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet .
+          python -c "
+          from voight_kampff.scenario import load_pairs
+          from voight_kampff.scoring import score_all
+          from voight_kampff.report.build import build_report
+          print('core imports clean with', len(load_pairs('scenarios/pairs')), 'pairs')
+          "
+
       - name: No ignored artifacts slipped in
         run: |
           set -euo pipefail

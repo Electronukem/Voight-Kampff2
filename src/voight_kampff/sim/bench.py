@@ -26,8 +26,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import numpy as np
-
 # Bench dimensions in metres. Small enough that a tabletop arm could reach
 # across it, which keeps Tier A scenes plausible as Tier C setups.
 TABLE_HALF_X, TABLE_HALF_Y, TABLE_TOP_Z = 0.60, 0.40, 0.0
@@ -287,27 +285,44 @@ def project_to_pixels(
 
     Returns None for points behind the camera. Standard pinhole model: MuJoCo
     cameras look down -z in their own frame with +x right and +y up.
+
+    Deliberately written without numpy. This module is imported by
+    ``scenario.py``, so anything it imports at module level becomes a hard
+    dependency of the scoring core -- which is meant to install and run with
+    PyYAML alone, no simulator required.
     """
     import math
 
-    px, py, pz = point
-    cx, cy, cz = FRONT_CAM_POS
-    x_axis = np.array(FRONT_CAM_XYAXES[0], dtype=float)
-    y_axis = np.array(FRONT_CAM_XYAXES[1], dtype=float)
-    x_axis /= np.linalg.norm(x_axis)
-    y_axis = y_axis - x_axis * float(np.dot(y_axis, x_axis))
-    y_axis /= np.linalg.norm(y_axis)
-    z_axis = np.cross(x_axis, y_axis)
+    def _sub(a, b):
+        return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
 
-    rel = np.array([px - cx, py - cy, pz - cz], dtype=float)
-    cam = np.array(
-        [float(np.dot(rel, x_axis)), float(np.dot(rel, y_axis)), float(np.dot(rel, z_axis))]
-    )
+    def _dot(a, b):
+        return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+
+    def _scale(a, k):
+        return (a[0] * k, a[1] * k, a[2] * k)
+
+    def _cross(a, b):
+        return (
+            a[1] * b[2] - a[2] * b[1],
+            a[2] * b[0] - a[0] * b[2],
+            a[0] * b[1] - a[1] * b[0],
+        )
+
+    def _unit(a):
+        norm = math.sqrt(_dot(a, a))
+        return _scale(a, 1.0 / norm) if norm > 1e-12 else a
+
+    x_axis = _unit(FRONT_CAM_XYAXES[0])
+    y_raw = FRONT_CAM_XYAXES[1]
+    y_axis = _unit(_sub(y_raw, _scale(x_axis, _dot(y_raw, x_axis))))
+    z_axis = _cross(x_axis, y_axis)
+
+    rel = _sub(point, FRONT_CAM_POS)
+    cam = (_dot(rel, x_axis), _dot(rel, y_axis), _dot(rel, z_axis))
     depth = -cam[2]
     if depth <= 1e-6:
         return None
 
     focal = (height / 2.0) / math.tan(math.radians(fovy_deg) / 2.0)
-    u = width / 2.0 + focal * cam[0] / depth
-    v = height / 2.0 - focal * cam[1] / depth
-    return (u, v)
+    return (width / 2.0 + focal * cam[0] / depth, height / 2.0 - focal * cam[1] / depth)

@@ -119,3 +119,28 @@ class TestRendering:
             out.append(r.render("front"))
             r.close()
         assert np.array_equal(out[0], out[1])
+
+
+class TestCoreDependencyBoundary:
+    """bench.py is imported by scenario.py, so its imports are the core's imports."""
+
+    def test_bench_has_no_heavy_module_level_imports(self):
+        """Regression: a module-level numpy import here broke the core install.
+
+        Local environments have the sim extra installed and will not catch it;
+        only a clean install does. Keeping the check here makes it fail fast.
+        """
+        import ast
+
+        source = (
+            Path(__file__).resolve().parents[1] / "src" / "voight_kampff" / "sim" / "bench.py"
+        ).read_text(encoding="utf-8")
+        names = set()
+        for node in ast.parse(source).body:
+            if isinstance(node, ast.Import):
+                names.update(a.name.split(".")[0] for a in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+                names.add(node.module.split(".")[0])
+        assert not (names & {"numpy", "mujoco", "PIL"}), (
+            f"{names} at module level would make these core dependencies"
+        )
