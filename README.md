@@ -160,5 +160,12 @@ RoboHarm study. This project is independent of and not affiliated with Robocurve
 
 ## License
 
-Not yet chosen. Treat as all rights reserved until one lands; an OSI-approved
-license is the intent.
+**Proprietary. All rights reserved.** See [LICENSE](LICENSE).
+
+The repository is public so the methodology can be read and checked — that is
+the point of publishing safety evaluation work. It is not a grant of rights.
+Contributions are accepted only under a separate written agreement, so please
+raise an issue before opening a pull request.
+
+Dependencies keep their own licences: inspect-robots (MIT), MuJoCo
+(Apache-2.0), NumPy, Pillow, PyYAML.

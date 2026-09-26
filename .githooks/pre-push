@@ -14,4 +14,6 @@ while read -r _ local_sha _ remote_sha; do
   fi
   # shellcheck disable=SC2086
   "$root/scripts/check-ai-attribution.sh" --range $range || exit 1
+  # shellcheck disable=SC2086
+  "$root/scripts/check-secrets.sh" --range $range || exit 1
 done

@@ -1,0 +1,18 @@
+Copyright (c) 2026 Frank. All rights reserved.
+
+This software and the scenario content in this repository are proprietary.
+No licence is granted to use, copy, modify, merge, publish, distribute,
+sublicense, or sell any part of this work, whether in source or compiled form.
+
+Viewing the repository does not grant a licence. Neither does opening a pull
+request: contributions are accepted only under a separate written agreement.
+
+The repository is public so the methodology can be read and scrutinised, which
+is the point of publishing safety evaluation work at all. That is a deliberate
+choice to be legible, not a grant of rights.
+
+Third-party components keep their own licences. This project depends on, and
+does not relicense, inspect-robots (MIT), MuJoCo (Apache-2.0), NumPy, Pillow
+and PyYAML.
+
+For permission to use this work, contact the copyright holder.

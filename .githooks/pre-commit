@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Blocks a credential before it is written into a commit at all.
+# Enable with:  git config core.hooksPath .githooks
+exec "$(dirname "$0")/../scripts/check-secrets.sh" --staged

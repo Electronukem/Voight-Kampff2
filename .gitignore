@@ -87,8 +87,10 @@ share/python-wheels/
 *.egg
 MANIFEST
 
-# Environments
+# Environments. .env holds API keys and must never be committed;
+# scripts/check-secrets.sh enforces that independently.
 .env
+.env.local
 .env.*
 !.env.example
 .venv/

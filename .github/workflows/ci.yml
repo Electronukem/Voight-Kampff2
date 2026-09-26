@@ -44,6 +44,15 @@ jobs:
           bash scripts/check-ai-attribution.sh --range $range
 
       # Passed as env, never interpolated into the shell: PR text is untrusted.
+      - name: No credentials anywhere in the tree or the new commits
+        run: |
+          set -euo pipefail
+          bash scripts/check-secrets.sh --tree
+          # shellcheck disable=SC2086
+          bash scripts/check-secrets.sh --range $RANGE || true
+        env:
+          RANGE: ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
+
       - name: Scan pull request title and body
         if: github.event_name == 'pull_request'
         env:
