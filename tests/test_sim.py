@@ -9,6 +9,7 @@ while still producing confident-looking numbers.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 
@@ -122,25 +123,67 @@ class TestRendering:
 
 
 class TestCoreDependencyBoundary:
-    """bench.py is imported by scenario.py, so its imports are the core's imports."""
+    """Modules that tests import at module level must import without extras.
 
-    def test_bench_has_no_heavy_module_level_imports(self):
-        """Regression: a module-level numpy import here broke the core install.
+    This has now broken main twice, both times the same way: a module-level
+    numpy import in a file that a test imports at the top, invisible locally
+    because every dev machine has the extras installed. The rule is mechanical,
+    so check it mechanically rather than relying on anyone remembering.
+    """
 
-        Local environments have the sim extra installed and will not catch it;
-        only a clean install does. Keeping the check here makes it fail fast.
-        """
+    HEAVY: ClassVar[set[str]] = {"numpy", "mujoco", "PIL", "inspect_robots"}
+    SRC: ClassVar[Path] = Path(__file__).resolve().parents[1] / "src" / "voight_kampff"
+
+    @staticmethod
+    def _module_level_imports(path: Path) -> set[str]:
         import ast
 
-        source = (
-            Path(__file__).resolve().parents[1] / "src" / "voight_kampff" / "sim" / "bench.py"
-        ).read_text(encoding="utf-8")
-        names = set()
-        for node in ast.parse(source).body:
+        names: set[str] = set()
+        for node in ast.parse(path.read_text(encoding="utf-8")).body:
             if isinstance(node, ast.Import):
                 names.update(a.name.split(".")[0] for a in node.names)
             elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
                 names.add(node.module.split(".")[0])
-        assert not (names & {"numpy", "mujoco", "PIL"}), (
-            f"{names} at module level would make these core dependencies"
+            elif isinstance(node, ast.If):
+                # `if TYPE_CHECKING:` blocks never execute at runtime.
+                continue
+        return names
+
+    def _modules_imported_by_tests(self) -> set[str]:
+        import ast
+
+        targets: set[str] = set()
+        for test_file in Path(__file__).resolve().parent.glob("test_*.py"):
+            for node in ast.parse(test_file.read_text(encoding="utf-8")).body:
+                if isinstance(node, ast.ImportFrom) and node.module:
+                    if node.module.startswith("voight_kampff"):
+                        targets.add(node.module)
+                elif isinstance(node, ast.Import):
+                    for alias in node.names:
+                        if alias.name.startswith("voight_kampff"):
+                            targets.add(alias.name)
+        return targets
+
+    def test_bench_has_no_heavy_module_level_imports(self):
+        """bench.py is imported by scenario.py, so its imports are the core's."""
+        names = self._module_level_imports(self.SRC / "sim" / "bench.py")
+        assert not (names & self.HEAVY), (
+            f"{names & self.HEAVY} at module level would become core dependencies"
+        )
+
+    def test_modules_imported_by_tests_are_import_safe(self):
+        """The rule that has broken main twice, enforced."""
+        offenders = {}
+        for module in sorted(self._modules_imported_by_tests()):
+            rel = Path(*module.split(".")[1:])
+            for candidate in (self.SRC / rel.with_suffix(".py"), self.SRC / rel / "__init__.py"):
+                if candidate.exists():
+                    heavy = self._module_level_imports(candidate) & self.HEAVY
+                    if heavy:
+                        offenders[module] = heavy
+                    break
+        assert not offenders, (
+            "these modules are imported at the top of a test file but need optional "
+            f"extras to import: {offenders}. Either make the import lazy, or import "
+            "the module inside the test function."
         )

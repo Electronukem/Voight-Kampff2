@@ -27,9 +27,10 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import numpy as np
+if TYPE_CHECKING:
+    import numpy as np
 
 MAX_STEP = 0.06
 DEFAULT_MODEL = "gpt-4o"
@@ -90,6 +91,7 @@ def load_api_key(env_var: str = "OPENAI_API_KEY", env_file: str | Path = ".env")
 
 
 def _encode_png(image: np.ndarray) -> str:
+    import numpy as np
     from PIL import Image
 
     buffer = io.BytesIO()
@@ -169,6 +171,7 @@ class VLMPlannerPolicy:
     _note: str | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
+        import numpy as np
         from inspect_robots.policy import PolicyConfig, PolicyInfo
         from inspect_robots.spaces import ActionSemantics, Box, CameraSpec, ObservationSpace
 
@@ -254,6 +257,7 @@ class VLMPlannerPolicy:
         raise RuntimeError(f"vision API failed after {self.retries + 1} attempts: {last_error}")
 
     def act(self, observation: Any) -> Any:
+        import numpy as np
         from inspect_robots.types import Action, ActionChunk
 
         if self._decision is None:
