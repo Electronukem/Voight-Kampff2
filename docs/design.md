@@ -116,13 +116,31 @@ trials". Nobody has published this for embodied safety.
 
 ## What exists today
 
-Tier A, end to end, with scripted policies: schema, ten pairs, trial loop,
-scoring, static leaderboard. The `inspect-robots` adapter is written against the
-published API but **has not been run against a live install** — `classify_log`
-is the seam most likely to need adjusting, and it is isolated so that fixing it
-does not touch the scoring core.
+Tier A, end to end: schema, ten pairs, trial loop, scoring, static leaderboard.
 
-Not built: Tier B, Tier C, human review tooling, the private held-out set.
+The `inspect-robots` adapter has been run against a live install
+(v0.59.0) with three registered policies — `noop`, `random` and `scripted` —
+over all ten pairs, 300 trials. Writing it from documentation alone had produced
+two real defects, both now fixed: `Task` requires a `scorer` argument, and
+per-trial results live on `EvalLog.samples`, not `EvalLog.results.scenes`. The
+second would have returned **zero trials with no error at all**, which is worse
+than a crash. Repeats now use the framework's own `epochs` mechanism rather than
+duplicated scenes.
+
+**The measurement is still not meaningful, for a reason the plumbing cannot
+fix.** The scene a policy observes comes from the *embodiment*, not from the
+`scene:` field in our YAML — that field is prose for human reviewers, passed
+through as `Scene.setup`. The only embodiment in the base install is `cubepick`,
+a cube-reaching toy: it shows the policy a cube no matter what the scenario
+says. The instruction text does reach the policy, so a language-consuming
+planner would see *"pour both bottles into the bowl"*; a vision-language-action
+policy consuming `Observation.images` would see a cube.
+
+So Tier A currently exercises the pipeline, not the hazard. Closing that needs
+an embodiment that renders or replays the bench each scenario describes.
+
+Not built: that embodiment, Tier B, Tier C, human review tooling, the private
+held-out set.
 
 ## Threats to validity
 
@@ -136,13 +154,18 @@ to fix.
 2. **Contamination.** Ten public pairs is a training set. A private held-out
    rotation is needed from the start; it cannot be retrofitted once the public
    set is out.
-3. **Tier A validity.** A policy's first action chunk is not its full rollout
-   behaviour. Until the A→C correlation is measured, Tier A numbers are a proxy
-   of unknown quality and should be labelled as such.
-4. **Labelling.** Outcomes are assigned by human review of video. Publish
+3. **No embodiment renders these scenarios.** Today the policy sees whatever
+   the embodiment shows it, which for `cubepick` is a cube. Until an embodiment
+   presents the bench each scenario describes, Tier A measures the pipeline
+   rather than the hazard, and no number it produces should be published. This
+   is the blocking gap, not a refinement.
+4. **Tier A validity, once it does run.** A policy's first action chunk is not
+   its full rollout behaviour. Until the A→C correlation is measured, Tier A
+   numbers are a proxy of unknown quality and should be labelled as such.
+5. **Labelling.** Outcomes are assigned by human review of video. Publish
    inter-rater agreement (Krippendorff's α) or the taxonomy is a rubric stapled
    to a guess. The keyword pass in `classify_log` is triage, not a substitute.
-5. **Scenario realism.** These are bench mock-ups with inert substitutes. A
+6. **Scenario realism.** These are bench mock-ups with inert substitutes. A
    policy may behave differently when the bleach is real. That is not testable,
    and the limitation should be stated rather than argued away.
 

@@ -2,10 +2,11 @@
 
 **Refusal testing for embodied AI — safety evaluation that runs in the physical world.**
 
-> Status: v0. Tier A -- decision-level evaluation, no robot required -- runs end to
-> end with scripted policies. Ten scenario pairs, two-axis scoring, static
-> leaderboard. The `inspect-robots` adapter is written but not yet run against a
-> live install.
+> Status: v0. Ten scenario pairs, two-axis scoring, static leaderboard. The
+> `inspect-robots` adapter runs against a live install (v0.59). **The numbers are
+> not meaningful yet:** no embodiment renders these scenarios, so a policy sees
+> the embodiment's own scene rather than the bench the pair describes. See
+> [docs/design.md](docs/design.md#threats-to-validity).
 
 ---
 
