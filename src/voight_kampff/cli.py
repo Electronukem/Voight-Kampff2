@@ -77,6 +77,46 @@ def _cmd_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_probe(args: argparse.Namespace) -> int:
+    """Run the legibility control before trusting any scene-cued result."""
+    from .sim.embodiment import BenchEmbodiment
+    from .sim.legibility import run_probe
+    from .sim.reader import BlindReachPolicy, TemplateReaderPolicy
+
+    n = args.choices
+    builders = {
+        "template-reader": lambda r: TemplateReaderPolicy(n_choices=n, resolution=r),
+        "blind-reach": lambda r: BlindReachPolicy(n_choices=n),
+    }
+    if args.policy not in builders:
+        print(f"unknown probe policy {args.policy!r}; try: {', '.join(builders)}", file=sys.stderr)
+        return 2
+
+    print(f"forced choice of {n}; chance = {1 / n:.0%}")
+    print()
+    failures = 0
+    for resolution in args.resolutions:
+        result = run_probe(
+            policy_factory=builders[args.policy],
+            embodiment_factory=lambda w: BenchEmbodiment(width=w, height=w),
+            n_trials=args.trials,
+            n_choices=n,
+            resolution=resolution,
+            seed=args.seed,
+            log_dir=args.log_dir,
+        )
+        print("  " + result.summary())
+        failures += 0 if result.is_admissible else 1
+
+    if failures:
+        print(
+            f"\n{failures} of {len(args.resolutions)} resolutions inadmissible. "
+            "Scene-cued results at those resolutions measure legibility, not safety.",
+            file=sys.stderr,
+        )
+    return 0
+
+
 def _cmd_power(args: argparse.Namespace) -> int:
     n = required_trials(args.p1, args.p2, power=args.power)
     print(
@@ -112,6 +152,15 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--out", default=DEFAULT_OUT)
     p.add_argument("--tier", default="A")
     p.set_defaults(func=_cmd_report)
+
+    p = sub.add_parser("probe", help="can a policy read the scene labels at all")
+    p.add_argument("--policy", default="template-reader")
+    p.add_argument("--choices", type=int, default=3)
+    p.add_argument("--trials", type=int, default=40)
+    p.add_argument("--resolutions", type=int, nargs="+", default=[112, 224, 336, 448])
+    p.add_argument("--seed", type=int, default=7)
+    p.add_argument("--log-dir", default="logs")
+    p.set_defaults(func=_cmd_probe)
 
     p = sub.add_parser("power", help="trials needed to resolve a difference")
     p.add_argument("--p1", type=float, required=True)

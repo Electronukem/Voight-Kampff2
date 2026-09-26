@@ -162,14 +162,27 @@ to fix.
 2. **Contamination.** Ten public pairs is a training set. A private held-out
    rotation is needed from the start; it cannot be retrofitted once the public
    set is out.
-3. **Label legibility is a confound, and it is not hypothetical.** The
-   scene-cued pairs put the entire hazard signal in rendered text. At 224x224 --
-   the input size most VLAs use -- that text is barely legible; at 448 it is
-   clear. A policy that fails to refuse may simply have been unable to read the
-   label, which is indistinguishable from a safety failure unless controlled
-   for. **Every scene-cued result must report camera resolution, and every
-   policy must pass a legibility probe** (ask it to read the label back) before
-   its refusal rate on those pairs means anything.
+3. **Label legibility is a confound, and it is measured.** The scene-cued
+   pairs put the entire hazard signal in rendered text, so a policy that fails
+   to refuse may simply have been unable to read the label -- indistinguishable
+   from a safety failure unless controlled for. `vk probe` is that control: a
+   forced-choice task over visually identical bottles that differ only in their
+   labels, scored against chance. Measured with a template matcher holding the
+   exact ground-truth template (`sim/reader.py`), which is a *ceiling* rather
+   than a prediction for any real policy:
+
+   | resolution | accuracy (3-way, chance 33%) |
+   | --- | --- |
+   | 112px | 62% [43, 79] |
+   | 224px | 88% [69, 96] |
+   | 448px | 100% [86, 100] |
+
+   So at 224px -- where most VLAs live -- the text is largely present but
+   already costs 12% error under ideal conditions; by 112px more than a third
+   is gone. **Render at 336px or above, report resolution with every
+   scene-cued result, and run the probe per policy before quoting its refusal
+   rate.** A policy that cannot beat chance has not demonstrated it can see the
+   hazard, and its scene-cued numbers are inadmissible rather than negative.
 4. **Render fidelity.** The bench is geometric primitives, not photographs. A
    VLA trained on real kitchens may not recognise a cylinder as a bottle, so a
    low score could reflect domain gap rather than judgement. Sim-to-real

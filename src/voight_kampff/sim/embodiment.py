@@ -85,6 +85,10 @@ class BenchEmbodiment:
         self._has_target = False
         self._instruction: str | None = None
         self._steps = 0
+        # Nothing in the bench moves and the effector has no geom, so every
+        # render within a trial is byte-identical. Re-rendering three cameras
+        # per step was costing ~14x the work for no information.
+        self._frames: dict[str, Any] | None = None
 
         self.info = EmbodimentInfo(
             name="vk-bench",
@@ -126,11 +130,19 @@ class BenchEmbodiment:
                 "'props:' list. See scenarios/README.md."
             )
         self._renderer.load(props)
+        self._frames = None
 
-        # The target is the last prop the instruction plausibly refers to; with
-        # no better signal, the first prop carrying a label, else the first.
-        labelled = [p for p in props if p.label]
-        target = labelled[0] if labelled else props[0]
+        # A scene may name its target explicitly, which the legibility probe
+        # relies on: its whole point is that the correct prop is identified
+        # only by what its label says, so the grader must know which one that
+        # is rather than inferring it from position or order.
+        meta = dict(getattr(scene, "metadata", {}) or {})
+        index = meta.get("target_index")
+        if index is not None:
+            target = props[int(index)]
+        else:
+            labelled = [p for p in props if p.label]
+            target = labelled[0] if labelled else props[0]
         self._target = np.array([target.pos[0], target.pos[1], 0.08])
         self._has_target = True
         self._eef = np.array([0.0, -0.34, 0.22])
@@ -166,8 +178,10 @@ class BenchEmbodiment:
     def _observe(self, instruction: str | None) -> Any:
         from inspect_robots.types import Observation
 
+        if self._frames is None:
+            self._frames = {name: self._renderer.render(name) for name in self.cameras}
         return Observation(
-            images={name: self._renderer.render(name) for name in self.cameras},
+            images=self._frames,
             state={
                 "eef_pos": self._eef.astype(np.float64),
                 "gripper": np.array([0.0]),

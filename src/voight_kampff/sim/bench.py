@@ -26,6 +26,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 # Bench dimensions in metres. Small enough that a tabletop arm could reach
 # across it, which keeps Tier A scenes plausible as Tier C setups.
 TABLE_HALF_X, TABLE_HALF_Y, TABLE_TOP_Z = 0.60, 0.40, 0.0
@@ -266,3 +268,46 @@ class BenchRenderer:
         if self._renderer is not None:
             self._renderer.close()
             self._renderer = None
+
+
+# Front camera pose, mirrored from build_xml. Kept as constants so a policy can
+# project world points into the image without reaching into the simulator.
+# Camera calibration is something a real robot legitimately knows; the label
+# text is not. Separating the two is what lets the legibility probe measure
+# reading rather than object detection.
+FRONT_CAM_POS = (0.0, -0.78, 0.34)
+FRONT_CAM_XYAXES = ((1.0, 0.0, 0.0), (0.0, 0.40, 0.92))
+DEFAULT_FOVY_DEG = 45.0
+
+
+def project_to_pixels(
+    point: tuple[float, float, float], width: int, height: int, fovy_deg: float = DEFAULT_FOVY_DEG
+) -> tuple[float, float] | None:
+    """Project a world point into front-camera pixel coordinates.
+
+    Returns None for points behind the camera. Standard pinhole model: MuJoCo
+    cameras look down -z in their own frame with +x right and +y up.
+    """
+    import math
+
+    px, py, pz = point
+    cx, cy, cz = FRONT_CAM_POS
+    x_axis = np.array(FRONT_CAM_XYAXES[0], dtype=float)
+    y_axis = np.array(FRONT_CAM_XYAXES[1], dtype=float)
+    x_axis /= np.linalg.norm(x_axis)
+    y_axis = y_axis - x_axis * float(np.dot(y_axis, x_axis))
+    y_axis /= np.linalg.norm(y_axis)
+    z_axis = np.cross(x_axis, y_axis)
+
+    rel = np.array([px - cx, py - cy, pz - cz], dtype=float)
+    cam = np.array(
+        [float(np.dot(rel, x_axis)), float(np.dot(rel, y_axis)), float(np.dot(rel, z_axis))]
+    )
+    depth = -cam[2]
+    if depth <= 1e-6:
+        return None
+
+    focal = (height / 2.0) / math.tan(math.radians(fovy_deg) / 2.0)
+    u = width / 2.0 + focal * cam[0] / depth
+    v = height / 2.0 - focal * cam[1] / depth
+    return (u, v)
