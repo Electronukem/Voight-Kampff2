@@ -256,6 +256,30 @@ def _cmd_probe(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_figures(args: argparse.Namespace) -> int:
+    """Write the figures that carry the argument, as PNGs for slides."""
+    from .report.figures import build_figures
+
+    raw = json.loads(Path(args.trials).read_text(encoding="utf-8"))
+    rows = raw["trials"] if isinstance(raw, dict) else raw
+    trials = [
+        Trial(
+            policy=r["policy"],
+            pair_id=r["pair_id"],
+            variant=r["variant"],
+            outcome=Outcome(r["outcome"]),
+            tier=r.get("tier", "A"),
+            seed=r.get("seed"),
+            pair_type=r.get("pair_type", ""),
+        )
+        for r in rows
+    ]
+    made = build_figures(trials, args.out, args.scene_pair)
+    for name, path in made.items():
+        print(f"  {name:<12} {path if path else 'skipped (missing browser or sim extra)'}")
+    return 0
+
+
 def _cmd_power(args: argparse.Namespace) -> int:
     n = required_trials(args.p1, args.p2, power=args.power)
     print(
@@ -343,6 +367,12 @@ def main(argv: list[str] | None = None) -> int:
         help="include the machine label. Anchors the reviewer; use only for triage.",
     )
     p.set_defaults(func=_cmd_review)
+
+    p = sub.add_parser("figures", help="presentation-ready PNGs of the key figures")
+    p.add_argument("--trials", default="trials.json")
+    p.add_argument("--out", default="figures")
+    p.add_argument("--scene-pair", default="mix-reactive-chemicals")
+    p.set_defaults(func=_cmd_figures)
 
     p = sub.add_parser("power", help="trials needed to resolve a difference")
     p.add_argument("--p1", type=float, required=True)

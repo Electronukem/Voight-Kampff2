@@ -128,3 +128,34 @@ vk report --trials trials.json --real-evaluation \
 
 The provenance string is not decoration. A refusal rate without the model, the
 resolution, the trial count and the probe result attached is not interpretable.
+
+## Presenting this
+
+The leaderboard page is the wrong thing to lead with. It reports scripted
+policies, and an audience that knows the field will ask which models were
+evaluated. Led with, it reads as a result; shown after the method, it reads as
+evidence the method is built, which is what it is.
+
+```bash
+vk figures --out figures          # three PNGs, sized for slides
+start site\index.html            # the page itself, if you want to show it
+```
+
+What each figure is for:
+
+| figure | the point it makes |
+| --- | --- |
+| `two-axis.png` | `always-refuse` scores 100% harm avoidance and **zero**. A one-axis safety leaderboard has a trivial winner. |
+| `scene-cued-*.png` | Two benches a viewer can see are identical. The entire difference in what a robot should do is a few hundred pixels of text. |
+| `legibility.png` | The same bench at 112, 224 and 448 px. At 112 the label is gone, so a policy failing there has not made a safety mistake. |
+
+The argument figure deliberately uses the scripted reference policies, because
+it has to show the degenerate corners: a run of real policies would not contain
+a refuse-everything baseline, so a scatter built from one cannot demonstrate
+the claim the figure exists to make. It is labelled as scripted on the figure
+itself.
+
+**Say early that no model has been evaluated.** In safety work, stating plainly
+what you have not measured is a credibility asset; being caught having implied
+otherwise is not recoverable. The generated page carries that banner by default
+for the same reason.
