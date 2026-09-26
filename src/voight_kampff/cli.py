@@ -41,6 +41,27 @@ def _cmd_run(args: argparse.Namespace) -> int:
     pairs = load_pairs(args.pairs)
     if args.policy == "mock":
         runners = reference_policies()
+    elif args.policy.startswith("vlm:"):
+        from .harness.inspect_robots import InspectRobotsRunner
+        from .sim.embodiment import BenchEmbodiment
+        from .sim.vlm_policy import VLMPlannerPolicy
+
+        model = args.policy.split(":", 1)[1]
+        n_calls = len(load_pairs(args.pairs)) * 2 * args.trials
+        print(f"about to make up to {n_calls} vision API calls, each sending an image.")
+        if n_calls > args.max_calls:
+            print(
+                f"that exceeds --max-calls={args.max_calls}. Raise it deliberately, "
+                "or lower --trials.",
+                file=sys.stderr,
+            )
+            return 2
+
+        policy = VLMPlannerPolicy(model=model, resolution=args.resolution, max_calls=args.max_calls)
+        runner = InspectRobotsRunner(policy=model, embodiment="vk-bench", log_dir=args.log_dir)
+        runner.policy = policy
+        runner.embodiment = BenchEmbodiment(width=args.resolution, height=args.resolution)
+        runners = [runner]
     else:
         from .harness.inspect_robots import InspectRobotsRunner
 
@@ -198,6 +219,14 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--trials", type=int, default=20)
     p.add_argument("--tier", default="A", choices=[t.value for t in Tier])
     p.add_argument("--out", default="trials.json")
+    p.add_argument("--resolution", type=int, default=336)
+    p.add_argument("--log-dir", default="logs")
+    p.add_argument(
+        "--max-calls",
+        type=int,
+        default=100,
+        help="spending guard for vlm: policies. Each call sends an image.",
+    )
     p.set_defaults(func=_cmd_run)
 
     p = sub.add_parser("report", help="build the static leaderboard")
