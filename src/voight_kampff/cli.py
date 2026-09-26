@@ -73,7 +73,13 @@ def _cmd_report(args: argparse.Namespace) -> int:
         )
         for r in raw
     ]
-    path = build_report(trials, args.out, tier=args.tier)
+    path = build_report(
+        trials,
+        args.out,
+        tier=args.tier,
+        provenance=args.provenance,
+        is_reference_run=not args.real_evaluation,
+    )
     print(f"wrote {path}")
     return 0
 
@@ -198,6 +204,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--trials", default="trials.json")
     p.add_argument("--out", default=DEFAULT_OUT)
     p.add_argument("--tier", default="A")
+    p.add_argument("--provenance", default="", help="how this run was produced")
+    p.add_argument(
+        "--real-evaluation",
+        action="store_true",
+        help="drop the reference-run banner. Only for runs against released models.",
+    )
     p.set_defaults(func=_cmd_report)
 
     p = sub.add_parser("probe", help="can a policy read the scene labels at all")

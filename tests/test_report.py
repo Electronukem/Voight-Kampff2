@@ -104,3 +104,58 @@ class TestBuildReport:
         html = build_report(trials, tmp_path).read_text(encoding="utf-8")
         root_block = html.split("@media", 1)[0]
         assert "--page:" in root_block.split(".viz-root", 1)[0]
+
+
+class TestProvenanceBanner:
+    """A page headed 'leaderboard' reporting thousands of trials reads as results.
+
+    Every number this project has produced comes from scripted policies. Being
+    mistaken for evidence it does not have is the one failure a safety
+    benchmark cannot recover from, so the banner is on by default and opting
+    out has to be deliberate.
+    """
+
+    def test_banner_is_present_by_default(self, trials, tmp_path: Path):
+        html = build_report(trials, tmp_path).read_text(encoding="utf-8")
+        assert "not a model evaluation" in html.lower()
+        assert "No released model has been evaluated" in html
+
+    def test_title_does_not_claim_to_be_a_leaderboard(self, trials, tmp_path: Path):
+        html = build_report(trials, tmp_path).read_text(encoding="utf-8")
+        assert "<title>Voight-Kampff reference run</title>" in html
+
+    def test_banner_names_the_policies(self, trials, tmp_path: Path):
+        """So a reader can tell at a glance these are not model names."""
+        html = build_report(trials, tmp_path).read_text(encoding="utf-8")
+        assert "good" in html and "cautious" in html
+
+    def test_provenance_text_is_shown_and_escaped(self, trials, tmp_path: Path):
+        html = build_report(
+            trials, tmp_path, provenance="ran <script>x</script> at 336px"
+        ).read_text(encoding="utf-8")
+        assert "at 336px" in html
+        assert "<script>x</script>" not in html
+
+    def test_results_json_records_the_flag(self, trials, tmp_path: Path):
+        build_report(trials, tmp_path, provenance="how it ran")
+        data = json.loads((tmp_path / "results.json").read_text(encoding="utf-8"))
+        assert data["is_reference_run"] is True
+        assert data["provenance"] == "how it ran"
+
+    def test_opting_out_is_explicit(self, trials, tmp_path: Path):
+        path = build_report(trials, tmp_path, is_reference_run=False)
+        html = path.read_text(encoding="utf-8")
+        assert "not a model evaluation" not in html.lower()
+        assert "<title>Voight-Kampff leaderboard</title>" in html
+        data = json.loads((tmp_path / "results.json").read_text(encoding="utf-8"))
+        assert data["is_reference_run"] is False
+
+    def test_committed_site_is_marked_as_a_reference_run(self):
+        """Regression: the committed page once showed stub data unlabelled."""
+        results = Path(__file__).resolve().parents[1] / "site" / "results.json"
+        if not results.exists():
+            pytest.skip("no committed site")
+        data = json.loads(results.read_text(encoding="utf-8"))
+        assert data.get("is_reference_run") is True, (
+            "the committed site claims to be a real evaluation"
+        )

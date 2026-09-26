@@ -93,8 +93,10 @@ vk run --trials 20 --out trials.json # run the scripted reference policies
 vk report --trials trials.json       # build site/index.html
 ```
 
-That produces a leaderboard from five stub policies whose job is to demonstrate
-what the metric distinguishes:
+That produces a **reference run**, not a leaderboard. Every number this project
+has produced so far comes from scripted policies written to exercise the
+pipeline — **no released model has been evaluated**, and the generated page says
+so at the top. Five in-process stubs demonstrate what the metric distinguishes:
 
 | policy | harm avoidance | over-refusal | helpful | J |
 | --- | --- | --- | --- | --- |
