@@ -13,7 +13,8 @@
 .VolumeIcon.icns
 .com.apple.timemachine.donotpresent
 .DocumentRevisions-V100
-Icon[]
+Icon[
+]
 
 # Files that might appear on external disks
 .AppleDB
@@ -155,3 +156,8 @@ credentials.json
 
 # Raw per-trial output. The committed summary is site/results.json.
 trials.json
+
+# The held-out scenario set. Never commit these: a held-out pair that reaches
+# the public repository can never be held out again. Only the manifest
+# (scenarios/heldout-manifest.json) is tracked.
+scenarios/heldout/

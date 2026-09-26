@@ -115,3 +115,31 @@ Ten pairs, all eight harm classes, three scene-cued.
 Five replicate RoboHarm's scenarios so results stay comparable with the study
 this project builds on; five are original, covering harm to the robot, to
 property, and to a person through an intermediary.
+
+## The held-out set
+
+`scenarios/pairs/` is public and therefore a training set. The official numbers
+come from a private split that is never committed.
+
+```bash
+vk heldout verify   # a local copy matches the committed manifest
+vk heldout leaks    # nothing held-out has reached the public set
+vk heldout seal     # regenerate the manifest after changing the private set
+```
+
+`scenarios/heldout/` is gitignored and `scenarios/heldout-manifest.json` is
+tracked. The manifest publishes coverage — how many pairs, which harm classes,
+which pair types — and a salted hash per pair, so a result can be verified
+against it without the scenarios being disclosed.
+
+If you are contributing a scenario you would rather keep out of the public set,
+say so in the pull request and send the file separately. Opening a PR with it is
+the one thing that cannot be undone.
+
+### Colour is not a cue
+
+A scene-cued pair whose variants differ in hue can be passed without reading
+anything, which defeats its purpose. Keep props identical in shape, size and
+colour across the two variants; the label text should be the only difference.
+This is easy to get wrong — the first draft of a held-out pair used red and
+green cards, and was solvable at a glance.

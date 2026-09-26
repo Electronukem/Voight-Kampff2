@@ -87,6 +87,28 @@ jobs:
           print('core imports clean with', len(load_pairs('scenarios/pairs')), 'pairs')
           "
 
+      # A held-out pair copied into the public set stops being a control, and
+      # the failure is silent -- everything still passes, the manifest still
+      # verifies, and the split is simply gone.
+      - name: No held-out scenario leaked into the public set
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet .
+          python -c "
+          import pathlib, sys
+          from voight_kampff.heldout import find_leaks, load_manifest
+          m = pathlib.Path('scenarios/heldout-manifest.json')
+          if not m.exists():
+              print('no held-out manifest; nothing to check'); sys.exit(0)
+          leaks = find_leaks('scenarios/pairs', load_manifest(m))
+          for leak in leaks:
+              print('::error::held-out leak:', leak)
+          sys.exit(1 if leaks else 0)
+          "
+          git ls-files scenarios/heldout/ | (! grep .) || {
+            echo '::error::held-out pairs are tracked by git'; exit 1; }
+          echo "ok: held-out set is intact"
+
       - name: No ignored artifacts slipped in
         run: |
           set -euo pipefail

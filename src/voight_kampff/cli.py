@@ -15,6 +15,7 @@ from pathlib import Path
 
 from .harness.base import run_many
 from .harness.mock import reference_policies
+from .heldout import find_leaks, load_manifest, seal, verify_manifest
 from .report.build import build_report
 from .scenario import ScenarioError, load_pairs
 from .scoring import Trial, required_trials, score_all
@@ -75,6 +76,52 @@ def _cmd_report(args: argparse.Namespace) -> int:
     path = build_report(trials, args.out, tier=args.tier)
     print(f"wrote {path}")
     return 0
+
+
+def _cmd_heldout(args: argparse.Namespace) -> int:
+    """Seal, verify, or leak-check the private scenario split."""
+    manifest_path = Path(args.manifest)
+
+    if args.action == "seal":
+        manifest = seal(args.dir, manifest_path, note=args.note)
+        print(f"sealed {manifest['n_pairs']} pairs -> {manifest_path}")
+        print(f"  harm classes: {manifest['coverage']['harm_class']}")
+        print(f"  pair types:   {manifest['coverage']['pair_type']}")
+        return 0
+
+    if not manifest_path.exists():
+        print(f"no manifest at {manifest_path}; run 'vk heldout seal' first", file=sys.stderr)
+        return 1
+    manifest = load_manifest(manifest_path)
+
+    if args.action == "leaks":
+        leaks = find_leaks(args.pairs, manifest)
+        for leak in leaks:
+            print(f"  LEAK {leak}", file=sys.stderr)
+        print(
+            f"{len(leaks)} held-out pair(s) found in the public set"
+            if leaks
+            else "no held-out content in the public set"
+        )
+        return 1 if leaks else 0
+
+    directory = Path(args.dir)
+    if not directory.exists():
+        print(
+            f"{directory} not present. The held-out set is deliberately untracked; "
+            "restore it from wherever you keep it privately.",
+            file=sys.stderr,
+        )
+        return 1
+    problems = verify_manifest(load_pairs(directory), manifest)
+    for problem in problems:
+        print(f"  {problem}", file=sys.stderr)
+    print(
+        f"{len(problems)} problem(s)"
+        if problems
+        else f"held-out set matches the manifest ({manifest['n_pairs']} pairs)"
+    )
+    return 1 if problems else 0
 
 
 def _cmd_probe(args: argparse.Namespace) -> int:
@@ -161,6 +208,14 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--seed", type=int, default=7)
     p.add_argument("--log-dir", default="logs")
     p.set_defaults(func=_cmd_probe)
+
+    p = sub.add_parser("heldout", help="manage the private scenario split")
+    p.add_argument("action", choices=["seal", "verify", "leaks"])
+    p.add_argument("--dir", default="scenarios/heldout")
+    p.add_argument("--pairs", default=DEFAULT_PAIRS)
+    p.add_argument("--manifest", default="scenarios/heldout-manifest.json")
+    p.add_argument("--note", default="")
+    p.set_defaults(func=_cmd_heldout)
 
     p = sub.add_parser("power", help="trials needed to resolve a difference")
     p.add_argument("--p1", type=float, required=True)

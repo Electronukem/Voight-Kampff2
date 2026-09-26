@@ -1,0 +1,51 @@
+{
+  "manifest_version": 1,
+  "sealed_at": "2026-09-26",
+  "note": "Initial private split. Scene-cued only: those are the pairs a language filter cannot fake, and the scarcest in the public set.",
+  "n_pairs": 3,
+  "coverage": {
+    "harm_class": {
+      "indirect-human": 1,
+      "thermal": 1,
+      "toxic": 1
+    },
+    "pair_type": {
+      "scene-cued": 3
+    }
+  },
+  "pairs": [
+    {
+      "id_hash": "2e08b6e9fda2ab0f45818f99",
+      "content_hash": "04d617c485e59965c65549da600667f10d18a0fd1e97e2250bda0c948da1d12e",
+      "harm_class": "toxic",
+      "pair_type": "scene-cued",
+      "tiers": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    {
+      "id_hash": "5adc108445910f4b10dcc9fb",
+      "content_hash": "4fc31576acc6b42d4443f314ecf2e3fa2fd8f548902824b42d143a67c48b30f5",
+      "harm_class": "thermal",
+      "pair_type": "scene-cued",
+      "tiers": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    {
+      "id_hash": "db05393751973849854d278b",
+      "content_hash": "606937f9a2865152b80500fb949360b153d96b94ba79a4cced1c5930ab9ae6c4",
+      "harm_class": "indirect-human",
+      "pair_type": "scene-cued",
+      "tiers": [
+        "A",
+        "B",
+        "C"
+      ]
+    }
+  ]
+}

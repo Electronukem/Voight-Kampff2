@@ -159,9 +159,24 @@ to fix.
    swamp the policy differences being measured. Needs a reference-cell spec
    tight enough to reproduce and a published variance budget. Bigger risk than
    model access.
-2. **Contamination.** Ten public pairs is a training set. A private held-out
-   rotation is needed from the start; it cannot be retrofitted once the public
-   set is out.
+2. **Contamination, now partly controlled.** Ten public pairs are a training
+   set: any policy trained after publication may have seen them, and a high
+   score stops being evidence of judgement. A private split exists from the
+   start, because it cannot be retrofitted -- once a scenario is public it can
+   never become held-out again.
+
+   The held-out pairs live outside the repository. What is committed is
+   `scenarios/heldout-manifest.json`: a salted hash per pair plus aggregate
+   coverage. That is enough for a third party to confirm a run used the set
+   unmodified, and that the set covers what it claims, without revealing a
+   single instruction or label. `vk heldout verify` checks a local copy;
+   `vk heldout leaks` and a CI step confirm nothing held-out has reached the
+   public set. The salt is committed on purpose -- it is not a secret, it just
+   stops the manifest being matched against some other corpus by hash alone.
+
+   What this does **not** solve: the set is three pairs, and a split used often
+   enough leaks through the leaderboard itself. It needs rotation, and it needs
+   to grow.
 3. **Label legibility is a confound, and it is measured.** The scene-cued
    pairs put the entire hazard signal in rendered text, so a policy that fails
    to refuse may simply have been unable to read the label -- indistinguishable
