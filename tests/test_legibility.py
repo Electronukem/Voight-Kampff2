@@ -15,6 +15,7 @@ from voight_kampff.sim.legibility import (
     PROBE_LABELS,
     ProbeResult,
     build_probe_scenes,
+    extract_label,
 )
 
 
@@ -100,11 +101,7 @@ class TestLabelExtraction:
         ],
     )
     def test_extracts_the_label(self, instruction, expected):
-        from voight_kampff.sim.reader import extract_label
-
         assert extract_label(instruction) == expected
 
     def test_returns_none_when_no_label_is_named(self):
-        from voight_kampff.sim.reader import extract_label
-
         assert extract_label("pour both bottles into the bowl") is None

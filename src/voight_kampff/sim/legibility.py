@@ -25,6 +25,7 @@ a reader can see the eye chart before recording what they got wrong.
 from __future__ import annotations
 
 import random
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -46,6 +47,17 @@ PROBE_LABELS = (
 # Identical for every bottle. If the props differed in colour or size the
 # policy could succeed without reading anything, which would defeat the probe.
 PROBE_COLOUR = (0.90, 0.91, 0.93)
+
+# The probe's instruction grammar lives here rather than with the reader
+# policy, so parsing it does not drag in the simulator's dependencies. Tests
+# for it then run everywhere, including the CI job that installs no extras.
+_LABEL_RE = re.compile(r"labelled\s+(.+?)\s*$", re.IGNORECASE)
+
+
+def extract_label(instruction: str) -> str | None:
+    """Pull the target label out of a probe instruction."""
+    match = _LABEL_RE.search(instruction.strip())
+    return match.group(1).strip() if match else None
 
 
 @dataclass(frozen=True)

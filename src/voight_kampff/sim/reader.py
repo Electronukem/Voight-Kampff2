@@ -21,20 +21,16 @@ resolution is measuring something other than safety judgement.
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 
+from .legibility import extract_label
+
 MAX_STEP = 0.06
-_LABEL_RE = re.compile(r"labelled\s+(.+?)\s*$", re.IGNORECASE)
 
-
-def extract_label(instruction: str) -> str | None:
-    """Pull the target label out of a probe instruction."""
-    match = _LABEL_RE.search(instruction.strip())
-    return match.group(1).strip() if match else None
+__all__ = ["BlindReachPolicy", "TemplateReaderPolicy", "extract_label"]
 
 
 def _greyscale(img: np.ndarray) -> np.ndarray:

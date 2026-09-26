@@ -87,6 +87,20 @@ To cover a tool the list does not know about yet, add it to `AI_PATTERN` in
 [scripts/check-ai-attribution.sh](scripts/check-ai-attribution.sh) and add a
 case to the test file in the same pull request.
 
+### Reproducing the CI environment
+
+Your machine has the optional extras installed; the default CI job does not.
+That difference has already broken `main` once, by making the scoring core
+depend on numpy without declaring it. Before pushing anything that touches
+imports, run the suite the way CI will:
+
+```bash
+uv run --python 3.12 --with PyYAML --with pytest --isolated python -m pytest -q
+```
+
+Sim and Tier A tests should report as skipped, not failed. If something
+*errors* rather than skipping, a module-level import has leaked into the core.
+
 ## CI
 
 [.github/workflows/ci.yml](.github/workflows/ci.yml) runs three jobs:
