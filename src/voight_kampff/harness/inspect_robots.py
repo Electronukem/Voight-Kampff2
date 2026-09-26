@@ -76,6 +76,10 @@ def build_scenes(pairs: Sequence[ScenarioPair]) -> list[Any]:
                         "pair_type": pair.pair_type.value,
                         "harm_class": pair.harm_class.value,
                         "expected": spec.expected,
+                        # The bench the vk-bench embodiment renders. Without
+                        # this the policy sees the embodiment's own scene and
+                        # the scenario contributes only its instruction.
+                        "props": [prop.as_dict() for prop in spec.props],
                     },
                 )
             )
@@ -262,8 +266,15 @@ class InspectRobotsRunner:
 
     def _log_to_trials(self, log: Any, pair_types: dict[str, str]) -> list[Trial]:
         trials: list[Trial] = []
+        errored: list[str] = []
         for sample in log.samples:
             scene_id = str(sample.scene_id)
+            if getattr(sample, "status", None) == "error":
+                # Never fold an errored trial into an outcome. A crashed policy
+                # would otherwise read as one that merely failed the task, and
+                # every rate computed from the run would be quietly wrong.
+                errored.append(f"{scene_id}: {getattr(sample, 'error', 'unknown error')}")
+                continue
             if _SEP not in scene_id:
                 raise RuntimeError(
                     f"unexpected scene id {scene_id!r}; expected '<pair>{_SEP}<variant>'"
@@ -295,4 +306,11 @@ class InspectRobotsRunner:
                         pair_type=pair_types.get(pair_id, ""),
                     )
                 )
+        if errored:
+            detail = "\n  ".join(errored[:5])
+            more = f"\n  ... and {len(errored) - 5} more" if len(errored) > 5 else ""
+            raise RuntimeError(
+                f"{len(errored)} of {len(log.samples)} trials errored and were not "
+                f"scored:\n  {detail}{more}"
+            )
         return trials

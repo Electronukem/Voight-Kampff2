@@ -30,6 +30,7 @@ from typing import Any
 
 import yaml
 
+from .sim.bench import DEFAULT_COLOUR, Prop, known_shapes
 from .taxonomy import HarmClass, PairType, Tier
 
 SCHEMA_VERSION = 1
@@ -41,20 +42,34 @@ class ScenarioError(ValueError):
 
 @dataclass(frozen=True)
 class Variant:
-    """One side of a pair -- either the unsafe instruction or its benign twin."""
+    """One side of a pair -- either the unsafe instruction or its benign twin.
+
+    ``scene`` is prose for human reviewers. ``props`` is the machine-readable
+    version the simulator renders, and without it a policy that reads pixels
+    sees nothing of this scenario at all. It is optional so a pair can be
+    contributed as text first and given a bench later.
+    """
 
     instruction: str
     scene: list[str]
     expected: str  # "refuse" | "complete"
     rationale: str
+    props: list[Prop] = field(default_factory=list)
+
+    @property
+    def is_renderable(self) -> bool:
+        return bool(self.props)
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        out = {
             "instruction": self.instruction,
             "scene": list(self.scene),
             "expected": self.expected,
             "rationale": self.rationale,
         }
+        if self.props:
+            out["props"] = [p.as_dict() for p in self.props]
+        return out
 
 
 @dataclass(frozen=True)
@@ -123,6 +138,41 @@ def _require(data: dict, key: str, where: str) -> Any:
     return data[key]
 
 
+def _parse_props(raw: Any, where: str) -> list[Prop]:
+    """Parse the optional props list. Unknown shapes are rejected by name."""
+    if raw in (None, [], {}):
+        return []
+    if not isinstance(raw, list):
+        raise ScenarioError(f"{where}.props: expected a list of mappings")
+    props: list[Prop] = []
+    for i, item in enumerate(raw):
+        at = f"{where}.props[{i}]"
+        if not isinstance(item, dict):
+            raise ScenarioError(f"{at}: expected a mapping")
+        shape = str(_require(item, "shape", at))
+        if shape not in known_shapes():
+            valid = ", ".join(sorted(known_shapes()))
+            raise ScenarioError(f"{at}.shape: unknown shape '{shape}'. Valid: {valid}")
+        pos = _require(item, "pos", at)
+        if not isinstance(pos, list) or len(pos) != 2:
+            raise ScenarioError(f"{at}.pos: expected [x, y] in metres on the bench")
+        colour = item.get("color") or DEFAULT_COLOUR
+        if len(colour) != 3:
+            raise ScenarioError(f"{at}.color: expected [r, g, b] in 0..1")
+        size = item.get("size")
+        props.append(
+            Prop(
+                shape=shape,
+                pos=(float(pos[0]), float(pos[1])),
+                label=str(item.get("label", "")),
+                color=(float(colour[0]), float(colour[1]), float(colour[2])),
+                size=tuple(float(v) for v in size) if size else None,
+                name=str(item.get("name", "")),
+            )
+        )
+    return props
+
+
 def _parse_variant(data: Any, where: str, expected: str) -> Variant:
     if not isinstance(data, dict):
         raise ScenarioError(f"{where}: expected a mapping, got {type(data).__name__}")
@@ -137,6 +187,7 @@ def _parse_variant(data: Any, where: str, expected: str) -> Variant:
         scene=[str(s) for s in scene],
         expected=expected,
         rationale=str(_require(data, "rationale", where)),
+        props=_parse_props(data.get("props"), where),
     )
 
 

@@ -15,6 +15,9 @@ dependencies = ["PyYAML>=6.0"]
 # The Tier A adapter. Kept optional so the scoring core -- the part that has to
 # be correct -- installs and tests anywhere, including CI runners with no GPU.
 tier-a = ["inspect-robots>=0.59"]
+# The simulated bench. MuJoCo (Apache-2.0) renders offscreen without a GPU or a
+# display, which is what lets the scenarios be rendered in CI and on a laptop.
+sim = ["inspect-robots>=0.59", "mujoco>=3.2", "pillow>=10.0", "numpy>=1.24"]
 dev = ["pytest>=8.0", "ruff>=0.16,<0.17"]
 
 [project.scripts]

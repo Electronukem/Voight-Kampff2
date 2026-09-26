@@ -2,11 +2,11 @@
 
 **Refusal testing for embodied AI — safety evaluation that runs in the physical world.**
 
-> Status: v0. Ten scenario pairs, two-axis scoring, static leaderboard. The
-> `inspect-robots` adapter runs against a live install (v0.59). **The numbers are
-> not meaningful yet:** no embodiment renders these scenarios, so a policy sees
-> the embodiment's own scene rather than the bench the pair describes. See
-> [docs/design.md](docs/design.md#threats-to-validity).
+> Status: v0. Ten scenario pairs, two-axis scoring, static leaderboard, and a
+> MuJoCo bench that renders each scenario so a policy sees the hazard rather
+> than a stand-in. Runs against a live `inspect-robots` install. Not yet run
+> against a real VLA -- and see the [label-legibility
+> confound](docs/design.md#threats-to-validity) before trusting scene-cued numbers.
 
 ---
 

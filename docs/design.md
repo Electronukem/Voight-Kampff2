@@ -127,17 +127,25 @@ second would have returned **zero trials with no error at all**, which is worse
 than a crash. Repeats now use the framework's own `epochs` mechanism rather than
 duplicated scenes.
 
-**The measurement is still not meaningful, for a reason the plumbing cannot
-fix.** The scene a policy observes comes from the *embodiment*, not from the
-`scene:` field in our YAML — that field is prose for human reviewers, passed
-through as `Scene.setup`. The only embodiment in the base install is `cubepick`,
-a cube-reaching toy: it shows the policy a cube no matter what the scenario
-says. The instruction text does reach the policy, so a language-consuming
-planner would see *"pour both bottles into the bowl"*; a vision-language-action
-policy consuming `Observation.images` would see a cube.
+**The blocking gap is now closed.** `vk-bench` is a MuJoCo embodiment that
+renders each variant's own bench from a machine-readable `props:` list, so a
+policy finally sees the scenario rather than a stand-in. MuJoCo (Apache-2.0)
+was chosen over Isaac Lab, PyBullet, SAPIEN and Genesis: six dependencies, it
+renders offscreen without a GPU or display, and it is the standard for
+manipulation research. Genesis caps at Python <3.14; Isaac Sim is neither small
+nor open source.
 
-So Tier A currently exercises the pipeline, not the hazard. Closing that needs
-an embodiment that renders or replays the bench each scenario describes.
+Object labels are baked into textures and placed in the world, not composited
+onto the output, so what the policy sees is genuinely in the scene. That matters
+because `mix-reactive-chemicals` renders identical geometry for both variants
+and differs *only* in what two labels say -- mean absolute pixel difference
+between them is 0.36. The entire safety signal is a few hundred pixels of text.
+
+Two reference policies drive it: `bench-reach` complies with everything, and
+`bench-refuse` declines on instruction keywords. Across 120 trials on rendered
+benches, `bench-refuse` scores J = +0.57 on instruction-cued pairs and exactly
++0.00 on scene-cued ones -- the same keyword-matching collapse the in-process
+stubs show, now reproduced through the real evaluation loop.
 
 Not built: that embodiment, Tier B, Tier C, human review tooling, the private
 held-out set.
@@ -154,18 +162,25 @@ to fix.
 2. **Contamination.** Ten public pairs is a training set. A private held-out
    rotation is needed from the start; it cannot be retrofitted once the public
    set is out.
-3. **No embodiment renders these scenarios.** Today the policy sees whatever
-   the embodiment shows it, which for `cubepick` is a cube. Until an embodiment
-   presents the bench each scenario describes, Tier A measures the pipeline
-   rather than the hazard, and no number it produces should be published. This
-   is the blocking gap, not a refinement.
-4. **Tier A validity, once it does run.** A policy's first action chunk is not
+3. **Label legibility is a confound, and it is not hypothetical.** The
+   scene-cued pairs put the entire hazard signal in rendered text. At 224x224 --
+   the input size most VLAs use -- that text is barely legible; at 448 it is
+   clear. A policy that fails to refuse may simply have been unable to read the
+   label, which is indistinguishable from a safety failure unless controlled
+   for. **Every scene-cued result must report camera resolution, and every
+   policy must pass a legibility probe** (ask it to read the label back) before
+   its refusal rate on those pairs means anything.
+4. **Render fidelity.** The bench is geometric primitives, not photographs. A
+   VLA trained on real kitchens may not recognise a cylinder as a bottle, so a
+   low score could reflect domain gap rather than judgement. Sim-to-real
+   transfer of the *scenario*, not just the policy, is an open question here.
+5. **Tier A validity, once it does run.** A policy's first action chunk is not
    its full rollout behaviour. Until the A→C correlation is measured, Tier A
    numbers are a proxy of unknown quality and should be labelled as such.
-5. **Labelling.** Outcomes are assigned by human review of video. Publish
+6. **Labelling.** Outcomes are assigned by human review of video. Publish
    inter-rater agreement (Krippendorff's α) or the taxonomy is a rubric stapled
    to a guess. The keyword pass in `classify_log` is triage, not a substitute.
-6. **Scenario realism.** These are bench mock-ups with inert substitutes. A
+7. **Scenario realism.** These are bench mock-ups with inert substitutes. A
    policy may behave differently when the bleach is real. That is not testable,
    and the limitation should be stated rather than argued away.
 
