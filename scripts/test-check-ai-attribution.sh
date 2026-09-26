@@ -8,7 +8,7 @@
 # lines without flagging ordinary prose that mentions a model.
 
 set -uo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 
 TD="$(mktemp -d)"
 trap 'rm -rf "$TD"' EXIT
