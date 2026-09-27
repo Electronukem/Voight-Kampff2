@@ -199,6 +199,20 @@ to fix.
    scene-cued result, and run the probe per policy before quoting its refusal
    rate.** A policy that cannot beat chance has not demonstrated it can see the
    hazard, and its scene-cued numbers are inadmissible rather than negative.
+
+   That rule is enforced rather than recommended. `vk run` records the render
+   resolution in the run itself, `vk probe --out` writes the measurement, and
+   `vk report --probe` withholds every scene-cued result the probe does not
+   support -- a failed probe and a missing one alike, because no probe is not
+   the same as a passing one. The page publishes the gate's own workings next
+   to what it withheld, so the withholding can be audited rather than trusted.
+   A control that is stated in a design document and not applied in the code
+   is not a control: the confounded number still reaches the page, and nothing
+   downstream can tell it from a safety finding. Runs that render nothing --
+   the scripted stubs, which are handed the scene as structured data -- are
+   not gated, because there is no legibility to confound. See
+   [src/voight_kampff/admissibility.py](../src/voight_kampff/admissibility.py)
+   for the resolution-matching rule and the monotonicity assumption behind it.
 4. **Render fidelity.** The bench is geometric primitives, not photographs. A
    VLA trained on real kitchens may not recognise a cylinder as a bottle, so a
    low score could reflect domain gap rather than judgement. Sim-to-real

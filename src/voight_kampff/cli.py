@@ -13,6 +13,7 @@ import json
 import sys
 from pathlib import Path
 
+from .admissibility import load_probes, probe_document
 from .harness.base import run_many
 from .harness.mock import reference_policies
 from .heldout import find_leaks, load_manifest, seal, verify_manifest
@@ -23,6 +24,34 @@ from .taxonomy import Outcome, Tier
 
 DEFAULT_PAIRS = Path("scenarios/pairs")
 DEFAULT_OUT = Path("site")
+# Where the legibility probe puts the label text clear of the 224px cliff.
+DEFAULT_RESOLUTION = 336
+
+
+def _read_trials(path: str | Path) -> tuple[list[Trial], dict]:
+    """Load trials.json, tolerating both the envelope and a bare list.
+
+    Runs used to be written as a bare array, and those files are still
+    perfectly good data, so reading one has to keep working. What the envelope
+    adds is the run's own metadata -- the render resolution above all, which
+    the legibility gate cannot be applied without.
+    """
+    raw = json.loads(Path(path).read_text(encoding="utf-8"))
+    rows = raw["trials"] if isinstance(raw, dict) else raw
+    meta = {k: v for k, v in raw.items() if k != "trials"} if isinstance(raw, dict) else {}
+    trials = [
+        Trial(
+            policy=r["policy"],
+            pair_id=r["pair_id"],
+            variant=r["variant"],
+            outcome=Outcome(r["outcome"]),
+            tier=r.get("tier", "A"),
+            seed=r.get("seed"),
+            pair_type=r.get("pair_type", ""),
+        )
+        for r in rows
+    ]
+    return trials, meta
 
 
 def _cmd_validate(args: argparse.Namespace) -> int:
@@ -39,6 +68,9 @@ def _cmd_validate(args: argparse.Namespace) -> int:
 
 def _cmd_run(args: argparse.Namespace) -> int:
     pairs = load_pairs(args.pairs)
+    # None means nothing was rendered, and that is what disarms the legibility
+    # gate downstream -- so it stays None only where that is actually true.
+    resolution: int | None = None
     if args.policy == "mock":
         runners = reference_policies()
     elif args.policy.startswith("vlm:"):
@@ -57,20 +89,37 @@ def _cmd_run(args: argparse.Namespace) -> int:
             )
             return 2
 
-        policy = VLMPlannerPolicy(model=model, resolution=args.resolution, max_calls=args.max_calls)
+        resolution = args.resolution or DEFAULT_RESOLUTION
+        policy = VLMPlannerPolicy(model=model, resolution=resolution, max_calls=args.max_calls)
         runner = InspectRobotsRunner(policy=model, embodiment="vk-bench", log_dir=args.log_dir)
         runner.policy = policy
-        runner.embodiment = BenchEmbodiment(width=args.resolution, height=args.resolution)
+        runner.embodiment = BenchEmbodiment(width=resolution, height=resolution)
         runners = [runner]
     else:
         from .harness.inspect_robots import InspectRobotsRunner
 
+        # A registered embodiment renders at whatever size it was built with,
+        # which this command cannot see. Writing the default into the run
+        # record would be recording a guess, so report the gap instead.
+        resolution = args.resolution
+        if resolution is None:
+            print(
+                "note: --resolution not given, so the render resolution goes "
+                "unrecorded and the legibility gate cannot be applied to this "
+                "run's scene-cued results.",
+                file=sys.stderr,
+            )
         runners = [InspectRobotsRunner(policy=args.policy, embodiment=args.embodiment)]
 
     trials = run_many(runners, pairs, trials_per_variant=args.trials, tier=Tier(args.tier))
-    Path(args.out).write_text(
-        json.dumps([t.as_dict() for t in trials], indent=2), encoding="utf-8", newline=""
-    )
+    document = {
+        "policy": args.policy,
+        "tier": args.tier,
+        "trials_per_variant": args.trials,
+        "render_resolution": resolution,
+        "trials": [t.as_dict() for t in trials],
+    }
+    Path(args.out).write_text(json.dumps(document, indent=2), encoding="utf-8", newline="")
     print(f"{len(trials)} trials -> {args.out}")
     for score in score_all(trials):
         print(
@@ -81,25 +130,27 @@ def _cmd_run(args: argparse.Namespace) -> int:
 
 
 def _cmd_report(args: argparse.Namespace) -> int:
-    raw = json.loads(Path(args.trials).read_text(encoding="utf-8"))
-    trials = [
-        Trial(
-            policy=r["policy"],
-            pair_id=r["pair_id"],
-            variant=r["variant"],
-            outcome=Outcome(r["outcome"]),
-            tier=r.get("tier", "A"),
-            seed=r.get("seed"),
-            pair_type=r.get("pair_type", ""),
+    trials, meta = _read_trials(args.trials)
+
+    # The run records its own resolution so nobody has to remember to repeat
+    # it here; the flag is for re-reporting an older bare-list run.
+    resolution = args.resolution or meta.get("render_resolution")
+    probes = load_probes(args.probe) if args.probe else None
+    if resolution and probes is None:
+        print(
+            f"note: this run rendered at {resolution}px and no --probe was given, "
+            "so every scene-cued result will be withheld as unprobed.",
+            file=sys.stderr,
         )
-        for r in raw
-    ]
+
     path = build_report(
         trials,
         args.out,
         tier=args.tier,
         provenance=args.provenance,
         is_reference_run=not args.real_evaluation,
+        probes=probes,
+        resolution=resolution,
     )
     print(f"wrote {path}")
     return 0
@@ -115,20 +166,7 @@ def _cmd_review(args: argparse.Namespace) -> int:
     )
     from .review import apply_labels as _apply
 
-    raw = json.loads(Path(args.trials).read_text(encoding="utf-8"))
-    rows = raw["trials"] if isinstance(raw, dict) else raw
-    trials = [
-        Trial(
-            policy=r["policy"],
-            pair_id=r["pair_id"],
-            variant=r["variant"],
-            outcome=Outcome(r["outcome"]),
-            tier=r.get("tier", "A"),
-            seed=r.get("seed"),
-            pair_type=r.get("pair_type", ""),
-        )
-        for r in rows
-    ]
+    trials, _ = _read_trials(args.trials)
 
     if args.action == "export":
         instructions = {}
@@ -234,6 +272,7 @@ def _cmd_probe(args: argparse.Namespace) -> int:
     print(f"forced choice of {n}; chance = {1 / n:.0%}")
     print()
     failures = 0
+    results = []
     for resolution in args.resolutions:
         result = run_probe(
             policy_factory=builders[args.policy],
@@ -245,7 +284,19 @@ def _cmd_probe(args: argparse.Namespace) -> int:
             log_dir=args.log_dir,
         )
         print("  " + result.summary())
+        results.append(result.as_dict())
         failures += 0 if result.is_admissible else 1
+
+    if args.out:
+        document = probe_document(
+            results,
+            policy=args.policy,
+            choices=n,
+            trials_per_resolution=args.trials,
+            seed=args.seed,
+        )
+        Path(args.out).write_text(json.dumps(document, indent=2), encoding="utf-8", newline="")
+        print(f"\nwrote {args.out}; pass it to 'vk report --probe' to gate scene-cued results")
 
     if failures:
         print(
@@ -260,20 +311,7 @@ def _cmd_figures(args: argparse.Namespace) -> int:
     """Write the figures that carry the argument, as PNGs for slides."""
     from .report.figures import build_figures
 
-    raw = json.loads(Path(args.trials).read_text(encoding="utf-8"))
-    rows = raw["trials"] if isinstance(raw, dict) else raw
-    trials = [
-        Trial(
-            policy=r["policy"],
-            pair_id=r["pair_id"],
-            variant=r["variant"],
-            outcome=Outcome(r["outcome"]),
-            tier=r.get("tier", "A"),
-            seed=r.get("seed"),
-            pair_type=r.get("pair_type", ""),
-        )
-        for r in rows
-    ]
+    trials, _ = _read_trials(args.trials)
     made = build_figures(trials, args.out, args.scene_pair)
     for name, path in made.items():
         print(f"  {name:<12} {path if path else 'skipped (missing browser or sim extra)'}")
@@ -308,7 +346,15 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--trials", type=int, default=20)
     p.add_argument("--tier", default="A", choices=[t.value for t in Tier])
     p.add_argument("--out", default="trials.json")
-    p.add_argument("--resolution", type=int, default=336)
+    p.add_argument(
+        "--resolution",
+        type=int,
+        default=None,
+        help=(
+            f"render size in pixels (vlm: policies default to {DEFAULT_RESOLUTION}). "
+            "Recorded with the run, and the legibility gate needs it."
+        ),
+    )
     p.add_argument("--log-dir", default="logs")
     p.add_argument(
         "--endpoint",
@@ -332,6 +378,20 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--tier", default="A")
     p.add_argument("--provenance", default="", help="how this run was produced")
     p.add_argument(
+        "--probe",
+        default="",
+        help=(
+            "probe.json from 'vk probe --out'. Without it, a rendered run's "
+            "scene-cued results are withheld as unprobed."
+        ),
+    )
+    p.add_argument(
+        "--resolution",
+        type=int,
+        default=None,
+        help="override the render resolution recorded with the run",
+    )
+    p.add_argument(
         "--real-evaluation",
         action="store_true",
         help="drop the reference-run banner. Only for runs against released models.",
@@ -345,6 +405,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--resolutions", type=int, nargs="+", default=[112, 224, 336, 448])
     p.add_argument("--seed", type=int, default=7)
     p.add_argument("--log-dir", default="logs")
+    p.add_argument(
+        "--out",
+        default="",
+        help="write the results here, for 'vk report --probe'",
+    )
     p.set_defaults(func=_cmd_probe)
 
     p = sub.add_parser("heldout", help="manage the private scenario split")

@@ -129,8 +129,24 @@ registered name:
 ```bash
 uv pip install -e ".[tier-a]"
 inspect-robots list                  # what's registered
-vk run --policy <name> --embodiment <name>
+vk run --policy <name> --embodiment <name> --resolution 336
 ```
+
+Scene-cued pairs hide the hazard in rendered text, so a policy that cannot read
+the bench will fail to refuse for a reason that has nothing to do with safety.
+Before those numbers mean anything, the policy has to clear the legibility
+control, and the report enforces it:
+
+```bash
+vk probe --policy <name> --out probe.json      # can it read the labels at all
+vk report --trials trials.json --probe probe.json
+```
+
+Without a passing probe at the run's resolution, every scene-cued result is
+**withheld as inadmissible** rather than published as a negative -- a missing
+probe counts the same as a failed one. The page lists each policy's verdict and
+the measurement behind it. Runs that render nothing, including the scripted
+stubs above, are not gated: there is no label for them to misread.
 
 ## Layout
 
@@ -139,6 +155,7 @@ vk run --policy <name> --embodiment <name>
 | [scenarios/pairs/](scenarios/pairs/) | The public pairs. One file per pair; see [scenarios/README.md](scenarios/README.md) |
 | [docs/design.md](docs/design.md) | Why the benchmark is shaped this way, and what could invalidate it |
 | [src/voight_kampff/scoring.py](src/voight_kampff/scoring.py) | Two-axis scoring, Wilson and Newcombe intervals, power |
+| [src/voight_kampff/admissibility.py](src/voight_kampff/admissibility.py) | The legibility gate: which scene-cued numbers may be published |
 | [src/voight_kampff/harness/](src/voight_kampff/harness/) | Policy interface, scripted stubs, Tier A adapter |
 | [src/voight_kampff/report/](src/voight_kampff/report/) | Static leaderboard, no JS |
 

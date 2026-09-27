@@ -17,10 +17,11 @@ from __future__ import annotations
 
 import html
 import json
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
 
+from ..admissibility import GATED_PAIR_TYPES, ProbeSet, Ruling, rule_all
 from ..scoring import PolicyScore, Trial, score_all, score_by_pair_type
 
 # Validated against the light and dark chart surfaces with the palette checker
@@ -85,6 +86,8 @@ thead th { color: var(--text-secondary); font-weight: 600; font-size: 13px; }
 td.ci { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 td.num { font-variant-numeric: tabular-nums; }
 .flag { color: var(--text-secondary); font-size: 13px; }
+tr.withheld td { color: var(--text-muted); font-style: italic; }
+tr.withheld td:first-child { font-style: normal; }
 .banner {
   border: 2px solid var(--status-serious); border-radius: 10px;
   padding: 14px 18px; margin: 0 0 26px; background: var(--surface-1);
@@ -228,9 +231,23 @@ def render_scatter(scores: Sequence[PolicyScore], series: str = "overall", title
     return "".join(parts)
 
 
-def render_table(scores: Sequence[PolicyScore]) -> str:
+def render_table(scores: Sequence[PolicyScore], rulings: Mapping[str, Ruling] | None = None) -> str:
+    """The score table, withholding any row the legibility gate blocks.
+
+    A withheld row keeps the policy name and says why instead of disappearing.
+    Dropping it would read as "this policy was not run", which is a different
+    and weaker claim than "this number cannot be interpreted".
+    """
     rows = []
     for score in scores:
+        ruling = (rulings or {}).get(score.policy)
+        if ruling is not None and not ruling.verdict.is_publishable:
+            rows.append(
+                f'<tr class="withheld"><td>{_esc(score.policy)} '
+                f'<span class="flag">({_esc(ruling.verdict.value)})</span></td>'
+                f'<td colspan="7">withheld &mdash; {_esc(ruling.reason())}</td></tr>'
+            )
+            continue
         ha_lo, ha_hi = score.harm_avoidance.interval
         or_lo, or_hi = score.over_refusal.interval
         j_lo, j_hi = score.discrimination_interval
@@ -252,6 +269,42 @@ def render_table(scores: Sequence[PolicyScore]) -> str:
     )
 
 
+def _gate_note(
+    rulings: Mapping[str, Ruling], resolution: int | None, withheld: Sequence[str]
+) -> str:
+    """The gate's own workings, published alongside what it withheld.
+
+    Every policy is listed, including the ones that passed, and each verdict
+    carries the measurement behind it. A control that silently removes rows is
+    indistinguishable from a bug, and a reader who cannot audit the gate has
+    to take the withholding on trust.
+    """
+    if not rulings:
+        return ""
+    where = f"{resolution}px" if resolution else "an unrecorded render resolution"
+    lead = (
+        f"<strong>{len(withheld)} of {len(rulings)} policies</strong> had their "
+        "scene-cued results withheld"
+        if withheld
+        else "<strong>Every policy cleared the gate</strong>"
+    )
+    rows = "".join(
+        f"<tr><td>{_esc(policy)}</td><td>{_esc(ruling.verdict.value)}</td>"
+        f"<td>{_esc(ruling.reason())}</td></tr>"
+        for policy, ruling in sorted(rulings.items())
+    )
+    return f"""<h2>Legibility gate</h2>
+<p class="note">Scene-cued pairs give both variants the identical instruction and
+change only the world, so the hazard is legible only from what a label says. A
+policy that cannot read the bench will fail to refuse for a reason that is not a
+safety failure, and the two are indistinguishable in the outcome. So a scene-cued
+number is published only where <code>vk probe</code> has shown that policy reading
+labels above chance at {_esc(where)}; otherwise it is withheld as inadmissible
+rather than reported as a negative result. {lead}.</p>
+<table><thead><tr><th>policy</th><th>verdict</th><th>evidence</th></tr></thead>
+<tbody>{rows}</tbody></table>"""
+
+
 def build_report(
     trials: Sequence[Trial],
     out_dir: str | Path,
@@ -259,6 +312,8 @@ def build_report(
     include_trials: bool = False,
     provenance: str = "",
     is_reference_run: bool = True,
+    probes: ProbeSet | None = None,
+    resolution: int | None = None,
 ) -> Path:
     """Write index.html and results.json. Returns the HTML path.
 
@@ -272,6 +327,14 @@ def build_report(
     was intended. For a safety benchmark, being mistaken for evidence you do
     not have is the one error there is no recovering from -- so the default is
     to say so loudly, and a real evaluation has to opt out explicitly.
+
+    ``probes`` and ``resolution`` are the legibility gate. Scene-cued pairs put
+    the hazard entirely in rendered text, so a policy that cannot read the
+    bench produces a low refusal rate for a reason that has nothing to do with
+    safety. The gate turns on whenever ``resolution`` says the run rendered
+    anything; from there, a missing probe withholds the scene-cued rows exactly
+    as a failed one does, because no probe is not the same as a passing probe
+    and only one of those two readings is safe to default to.
     """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -281,14 +344,60 @@ def build_report(
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     n_pairs = len({t.pair_id for t in trials})
 
-    facets = "".join(
-        f"<figure><figcaption class='note'><strong>{_esc(name)}</strong></figcaption>"
-        f"{render_scatter(scores, series=name, title=f'{name} pairs')}</figure>"
-        for name, scores in by_type.items()
+    # One ruling per policy, reused by every gated facet: the question the
+    # probe answers is about the policy and the render resolution, not about
+    # which slice of pairs is being drawn.
+    rulings = rule_all(probes, [s.policy for s in overall], resolution)
+    # The confound only exists where the policy saw the scene through pixels.
+    # A render resolution is recorded exactly when something was rendered, so
+    # its absence means the scripted-stub case -- an in-process policy handed
+    # the scene as structured data, which cannot misread a label because it
+    # never reads one. Gating those would withhold numbers to control for a
+    # confound that is not present.
+    gated = [name for name in by_type if name in GATED_PAIR_TYPES] if resolution else []
+    withheld = sorted(
+        policy for policy, ruling in rulings.items() if gated and not ruling.verdict.is_publishable
     )
-    facet_tables = "".join(
-        f"<h3 style='font-size:15px;margin:22px 0 4px'>{_esc(name)}</h3>{render_table(scores)}"
-        for name, scores in by_type.items()
+
+    facet_parts: list[str] = []
+    facet_table_parts: list[str] = []
+    for name, scores in by_type.items():
+        is_gated = name in gated
+        facet_rulings = rulings if is_gated else None
+        # A withheld policy is dropped from the chart as well as the table. A
+        # mark on a scatter asserts a position, and there is no way to draw
+        # "this coordinate may be measuring eyesight" as a dot.
+        shown = (
+            [s for s in scores if rulings[s.policy].verdict.is_publishable]
+            if is_gated
+            else list(scores)
+        )
+        caption = f"<strong>{_esc(name)}</strong>"
+        n_hidden = len(scores) - len(shown)
+        if n_hidden:
+            caption += (
+                f" <span class='flag'>&middot; {n_hidden} of {len(scores)} "
+                "withheld by the legibility gate</span>"
+            )
+        facet_parts.append(
+            f"<figure><figcaption class='note'>{caption}</figcaption>"
+            f"{render_scatter(shown, series=name, title=f'{name} pairs')}</figure>"
+        )
+        facet_table_parts.append(
+            f"<h3 style='font-size:15px;margin:22px 0 4px'>{_esc(name)}</h3>"
+            f"{render_table(scores, facet_rulings)}"
+        )
+    facets = "".join(facet_parts)
+    facet_tables = "".join(facet_table_parts)
+
+    gate_note = _gate_note(rulings, resolution, withheld) if gated else ""
+    overall_caveat = (
+        "<p class='note'>These overall numbers pool both pair types, so they still "
+        f"contain scene-cued trials from {len(withheld)} policy(s) whose legibility "
+        "is unverified. Read them with that in mind; the split below is where the "
+        "gate applies.</p>"
+        if withheld
+        else ""
     )
 
     policies = ", ".join(s.policy for s in overall)
@@ -326,6 +435,7 @@ diagonal is where the two rates are equal: a policy sitting on it refuses safe a
 dangerous tasks alike, which is not a safety decision. Whiskers are 95% Wilson
 intervals.</p>
 <figure>{render_scatter(overall, "overall", "Harm avoidance against over-refusal")}</figure>
+{overall_caveat}
 {render_table(overall)}
 
 <h2>Split by pair type</h2>
@@ -336,6 +446,7 @@ on the left and collapses on the right is matching keywords, not reasoning about
 safety -- and a single combined score would average that away.</p>
 <div class="facets">{facets}</div>
 {facet_tables}
+{gate_note}
 
 <footer>Generated by <code>vk report</code>. Scenario definitions live in
 <code>scenarios/pairs/</code>; the numbers behind this page are in
@@ -356,8 +467,22 @@ RoboHarm (Robocurve, 2026).</footer>
                 "provenance": provenance,
                 "n_trials": len(trials),
                 "n_pairs": n_pairs,
+                "render_resolution": resolution,
                 "overall": [s.as_dict() for s in overall],
                 "by_pair_type": {k: [s.as_dict() for s in v] for k, v in by_type.items()},
+                "legibility": {
+                    "gated_pair_types": gated,
+                    "resolution": resolution,
+                    "withheld": withheld,
+                    "verdicts": {
+                        policy: {
+                            "verdict": ruling.verdict.value,
+                            "reason": ruling.reason(),
+                            "exact_resolution": ruling.exact,
+                        }
+                        for policy, ruling in sorted(rulings.items())
+                    },
+                },
                 **({"trials": [t.as_dict() for t in trials]} if include_trials else {}),
             },
             indent=2,
