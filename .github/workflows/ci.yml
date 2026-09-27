@@ -74,7 +74,10 @@ jobs:
       - name: No large files committed
         run: |
           set -euo pipefail
-          big="$(git ls-files -z | xargs -0 -r du -k 2>/dev/null | awk '$1 > 5120 {print $1"KB\t"$2}')"
+          # du prints "<size><TAB><path>", and paths can contain spaces, so
+          # splitting on whitespace truncates the name. Keep all of it.
+          big="$(git ls-files -z | xargs -0 -r du -k 2>/dev/null \
+                 | awk '$1 > 5120 { size = $1; sub(/^[0-9]+[ \t]+/, ""); print size "KB\t" $0 }')"
           if [ -n "$big" ]; then
             echo "::error::files over 5MB are tracked; evaluation artifacts belong outside git"
             echo "$big"
